@@ -8,6 +8,8 @@ const port = 3030;
 
 // Sends a new code to number (E.164 format e.g. +13109273149)
 app.get("/send/:number", (req, res) => {
+    req.setTimeout(5000); // Will timeout if no response from Twilio after 5s
+
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
                 .verifications
                 .create({to: req.params.number, channel: "sms"})
@@ -16,7 +18,8 @@ app.get("/send/:number", (req, res) => {
 
 // Checks that user-provided code is the one that was sent to number
 app.get("/check/:number/:code", (req, res) => {
-    console.log("checking ", req.params.number, req.params.code)
+    req.setTimeout(5000); // Will timeout if no response from Twilio after 5s
+
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
                 .verificationChecks
                 .create({to: req.params.number, code: req.params.code})
