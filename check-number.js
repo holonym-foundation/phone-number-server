@@ -59,7 +59,7 @@ app.get("/getCredentials/:number/:code/:country", (req, res) => {
 
 /* Functions */
 async function credsFromNumber(phoneNumber) {
-    const issuer = process.env.ADDRESS;
+    const issuer = process.env.PHONENO_ISSUER_ADDRESS;
     const secret = "0x" + randomBytes(numBytes).toString("hex");
     const completedAt = Math.ceil(Date.now() / 1000);
     assert.equal(issuer.length, 20, "invalid issuer");
@@ -81,7 +81,7 @@ async function credsFromNumber(phoneNumber) {
 }
 async function signLeaf(leaf) {
     const signable = ethers.utils.arrayify(ethers.BigNumber.from(leafAsStr));
-    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY);
+    const wallet = new ethers.Wallet(process.env.PHONENO_ISSUER_PRIVATE_KEY);
     const signature = await wallet.signMessage(signable);
     return signature;
 }
