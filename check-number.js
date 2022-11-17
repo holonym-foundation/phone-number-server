@@ -2,6 +2,7 @@ const assert = require("assert");
 const axios = require("axios");
 const { randomBytes } = require("crypto");
 const { ethers } = require("ethers");
+const { poseidon } = require("circomlibjs-old");
 
 require("dotenv").config();
 
@@ -62,8 +63,8 @@ app.get("/getCredentials/:number/:code/:country", (req, res) => {
 async function credsFromNumber(phoneNumber) {
     const issuer = process.env.PHONENO_ISSUER_ADDRESS;
     const secret = "0x" + randomBytes(16).toString("hex");
-    const completedAt = Math.ceil(Date.now() / 1000);
-    assert.equal(issuer.length, 20, "invalid issuer");
+    const completedAt = Math.ceil(Date.now() / 1000) + 2208988800; // 2208988800000 is 70 year offset; Unix timestamps below 1970 are negative and we want to allow dates starting at 1900. Hence, all Holonym dates start at 01/01/1900 rather than Unix 01/01/1970
+    assert.equal(issuer.length, 22, "invalid issuer");
     assert.equal(secret.length, 16, "invalid secret");
     
     const leaf = poseidon([
@@ -86,6 +87,7 @@ async function signLeaf(leaf) {
     const signature = await wallet.signMessage(signable);
     return signature;
 }
+
 /* - */
 app.listen(port);
 // holonym twilio number: +18312329705
