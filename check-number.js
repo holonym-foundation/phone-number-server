@@ -1,5 +1,6 @@
 const assert = require("assert");
 const axios = require("axios");
+const { randomBytes } = require("crypto");
 const { ethers } = require("ethers");
 
 require("dotenv").config();
@@ -60,7 +61,7 @@ app.get("/getCredentials/:number/:code/:country", (req, res) => {
 /* Functions */
 async function credsFromNumber(phoneNumber) {
     const issuer = process.env.PHONENO_ISSUER_ADDRESS;
-    const secret = "0x" + randomBytes(numBytes).toString("hex");
+    const secret = "0x" + randomBytes(16).toString("hex");
     const completedAt = Math.ceil(Date.now() / 1000);
     assert.equal(issuer.length, 20, "invalid issuer");
     assert.equal(secret.length, 16, "invalid secret");
