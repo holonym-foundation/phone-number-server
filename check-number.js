@@ -58,14 +58,14 @@ app.get("/getCredentials/:number/:code/:country", (req, res) => {
 
 })
 
-
 /* Functions */
-async function credsFromNumber(phoneNumber) {
+async function credsFromNumber(phoneNumberWithPlus) {
+    const phoneNumber = phoneNumberWithPlus.replace("+", "");
     const issuer = process.env.PHONENO_ISSUER_ADDRESS;
     const secret = "0x" + randomBytes(16).toString("hex");
     const completedAt = Math.ceil(Date.now() / 1000) + 2208988800; // 2208988800000 is 70 year offset; Unix timestamps below 1970 are negative and we want to allow dates starting at 1900. Hence, all Holonym dates start at 01/01/1900 rather than Unix 01/01/1970
-    assert.equal(issuer.length, 22, "invalid issuer");
-    assert.equal(secret.length, 16, "invalid secret");
+    assert.equal(issuer.length, 42, "invalid issuer");
+    assert.equal(secret.length, 34, "invalid secret");
     
     const leaf = poseidon([
            issuer, secret, phoneNumber, completedAt, 0, 0
@@ -77,12 +77,11 @@ async function credsFromNumber(phoneNumber) {
         issuer : issuer, 
         secret : secret, 
         completedAt : completedAt,
-        phoneNumber : phone,
         signature : signature
      };
 }
 async function signLeaf(leaf) {
-    const signable = ethers.utils.arrayify(ethers.BigNumber.from(leafAsStr));
+    const signable = ethers.utils.arrayify(ethers.BigNumber.from(leaf));
     const wallet = new ethers.Wallet(process.env.PHONENO_ISSUER_PRIVATE_KEY);
     const signature = await wallet.signMessage(signable);
     return signature;
