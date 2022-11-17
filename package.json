@@ -1,0 +1,24 @@
+{
+  "name": "phone-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "check-number.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/holonym-foundation/phone-number-server.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/holonym-foundation/phone-number-server/issues"
+  },
+  "homepage": "https://github.com/holonym-foundation/phone-number-server#readme",
+  "dependencies": {
+    "circomlibjs-old": "npm:circomlibjs@^0.0.8",
+    "ethers": "^5.7.2",
+    "twilio": "^3.83.3"
+  }
+}
