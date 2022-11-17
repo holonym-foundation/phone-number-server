@@ -16,7 +16,7 @@ const getIsSafe = (phoneNumber, country, callback) => {
     assert(phoneNumber && country);
     axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
     .then((response) => {
-        if(!(response?.data?.includes("fraud_score"))) {throw `Invalid response: ${JSON.stringify(response)} `}
+        if(!("fraud_score" in response?.data)) {throw `Invalid response: ${JSON.stringify(response)} `}
         callback(response.data.fraud_score <= MAX_FRAUD_SCORE)
     })
     
