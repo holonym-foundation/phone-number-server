@@ -28,7 +28,7 @@ const getCredentials = (phoneNumber, country, callback) => {
     assert(phoneNumber && country);
     getIsSafe(phoneNumber, country, (isSafe) => {
         if (!isSafe) throw "phone number could not be determined to belong to a unique human";
-        callback(credsFromNumber(phoneNumber));
+        credsFromNumber(phoneNumber).then(creds => callback(creds));
     });
 }
 
@@ -50,10 +50,8 @@ app.get("/getCredentials/:number/:code/:country", (req, res) => {
                 .verificationChecks
                 .create({to: req.params.number, code: req.params.code})
                 .then(verification => {
-                    console.log(verification);
                     if(verification.status !== "approved"){throw "There was a problem verifying the with the code provided"}
                     getCredentials(req.params.number, req.params.country, (credentials)=>res.send(credentials))
-                    // 
                 });
 
 })
@@ -72,6 +70,7 @@ async function credsFromNumber(phoneNumberWithPlus) {
          ].map((x) => ethers.BigNumber.from(x).toString())
     );
     const signature = await signLeaf(leaf);
+    
     return { 
         phoneNumber: phoneNumber, 
         issuer : issuer, 
