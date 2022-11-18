@@ -13,8 +13,9 @@ const app = express();
 const port = 3030;
 const MAX_FRAUD_SCORE = 2; // ipqualityscore.com defines fraud score. This constant will be used to only allow phone numbers with a <= fraud score.
 
+let connection;
 if(!process.env.NO_DB_ACCESS){
-    const connection = mysql.createConnection({
+    connection = mysql.createConnection({
         host: dbConfig.HOST,
         user: dbConfig.USER,
         password: dbConfig.PASSWORD,
@@ -116,7 +117,3 @@ function _getNumberIsRegistered(number, callback) {
 /* - */
 app.listen(port);
 // holonym twilio number: +18312329705
-
-
-
-// 
