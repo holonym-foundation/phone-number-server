@@ -96,10 +96,12 @@ function getIsSafe(phoneNumber, country, callback) {
     axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
     .then((response) => {
         if(!("fraud_score" in response?.data)) {throw `Invalid response: ${JSON.stringify(response)} `}
-        console.log("number is registered: ? ", _getNumberIsRegistered(phoneNumber));
-        if(_getNumberIsRegistered(phoneNumber)) {throw "Number has been registered already!"}
-        _setNumberIsRegistered(phoneNumber);
-        callback(response.data.fraud_score <= MAX_FRAUD_SCORE)
+        _getNumberIsRegistered(result, () => {
+            console.log("is registered", result);
+            if(result) {throw "Number has been registered already!"}
+            _setNumberIsRegistered(phoneNumber);
+            callback(response.data.fraud_score <= MAX_FRAUD_SCORE);
+        })  
     })
 }
 
