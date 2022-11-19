@@ -30,7 +30,7 @@ if(!process.env.NO_DB_ACCESS){
 
 // Sends a new code to number (E.164 format e.g. +13109273149)
 app.get("/send/:number", (req, res) => {
-    req.setTimeout(5000); // Will timeout if no response from Twilio after 5s
+    // req.setTimeout(5000); // Will timeout if no response from Twilio after 5s
 
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
                 .verifications
@@ -40,7 +40,7 @@ app.get("/send/:number", (req, res) => {
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
 app.get("/getCredentials/:number/:code/:country", (req, res) => {
-    req.setTimeout(5000); // Will timeout if no response from Twilio after 5s
+    req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
 
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
                 .verificationChecks
