@@ -55,7 +55,12 @@ app.get("/getCredentials/:number/:code/:country", (req, res) => {
 /* Functions */
 async function credsFromNumber(phoneNumberWithPlus) {
     const phoneNumber = phoneNumberWithPlus.replace("+", "");
-    const issuer = process.env.PHONENO_ISSUER_ADDRESS;
+    const issuer = (
+        process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING ? 
+            process.env.TESTING_PHONENO_ISSUER_ADDRESS 
+            : 
+            process.env.PHONENO_ISSUER_ADDRESS
+    );
     const secret = "0x" + randomBytes(16).toString("hex");
     const completedAt = Math.ceil(Date.now() / 1000) + 2208988800; // 2208988800000 is 70 year offset; Unix timestamps below 1970 are negative and we want to allow dates starting at 1900. Hence, all Holonym dates start at 01/01/1900 rather than Unix 01/01/1970
     assert.equal(issuer.length, 42, "invalid issuer");
@@ -78,7 +83,10 @@ async function credsFromNumber(phoneNumberWithPlus) {
 
 async function signLeaf(leaf) {
     const signable = ethers.utils.arrayify(ethers.BigNumber.from(leaf));
-    const wallet = new ethers.Wallet(process.env.PHONENO_ISSUER_PRIVATE_KEY);
+    // Generate the wallet from the real private key or the testing private key, depending on whether Sybil resistance is enabled
+    const wallet = new ethers.Wallet(
+        process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING ? process.env.TESTING_PHONENO_ISSUER_PRIVATE_KEY : process.env.PHONENO_ISSUER_PRIVATE_KEY
+    );
     const signature = await wallet.signMessage(signable);
     return signature;
 }
@@ -100,7 +108,7 @@ function getIsSafe(phoneNumber, country, callback) {
             console.log("is registered", result);
             if(result) {throw "Number has been registered already!"}
             // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
-            if(!process.env.DISABLE_SYBIL_RESISTANCE){
+            if(!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING){
                 _setNumberIsRegistered(phoneNumber, ()=>{});
             }
             callback(response.data.fraud_score <= MAX_FRAUD_SCORE);
