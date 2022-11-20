@@ -99,7 +99,9 @@ function getIsSafe(phoneNumber, country, callback) {
         _getNumberIsRegistered(phoneNumber, (result) => {
             console.log("is registered", result);
             if(result) {throw "Number has been registered already!"}
-            _setNumberIsRegistered(phoneNumber, ()=>{});
+            if(!process.env.DISABLE_SYBIL_RESISTANCE){
+                _setNumberIsRegistered(phoneNumber, ()=>{});
+            }
             callback(response.data.fraud_score <= MAX_FRAUD_SCORE);
         })  
     })
