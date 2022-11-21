@@ -19,6 +19,7 @@
   "dependencies": {
     "big-integer": "^1.6.51",
     "circomlibjs-old": "npm:circomlibjs@^0.0.8",
+    "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "ethers": "^5.7.2",
     "mysql": "^2.18.1",

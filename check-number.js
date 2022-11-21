@@ -8,8 +8,10 @@ const client = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWI
 const dbConfig = process.env.NO_DB_ACCESS || require("../phone-number-db.config.js");
 const mysql = require("mysql");
 const express = require("express");
+const cors = require("cors");
 
 const app = express();
+app.use(cors({origin: ["https://holonym.id", "https://www.holonym.id","http://localhost:3000","http://localhost:3001","http://localhost:3002"]}));
 const port = 3030;
 const MAX_FRAUD_SCORE = 2; // ipqualityscore.com defines fraud score. This constant will be used to only allow phone numbers with a <= fraud score.
 
