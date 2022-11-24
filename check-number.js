@@ -44,7 +44,7 @@ app.get("/send/:number", (req, res) => {
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
 app.get("/getCredentials/:number/:code/:country", (req, res) => {
     req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
-    console.log("credsFromNumber was called ")
+    console.log("getCredentials was called ")
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
                 .verificationChecks
                 .create({to: req.params.number, code: req.params.code})
@@ -98,6 +98,7 @@ async function signLeaf(leaf) {
 }
 
 function getCredentialsIfSafe(phoneNumber, country, callback) {
+    console.log("getCredentialsIfSafe was called")
     assert(phoneNumber && country);
     getIsSafe(phoneNumber, country, (isSafe) => {
         if (!isSafe) throw "phone number could not be determined to belong to a unique human";
