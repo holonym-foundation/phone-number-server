@@ -44,7 +44,7 @@ app.get("/send/:number", (req, res) => {
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
 app.get("/getCredentials/:number/:code/:country", (req, res) => {
     req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
-
+    console.log("credsFromNumber was called ")
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
                 .verificationChecks
                 .create({to: req.params.number, code: req.params.code})
@@ -57,6 +57,7 @@ app.get("/getCredentials/:number/:code/:country", (req, res) => {
 
 /* Functions */
 async function credsFromNumber(phoneNumberWithPlus) {
+    console.log("credsFromNumber was called ")
     const phoneNumber = phoneNumberWithPlus.replace("+", "");
     const issuer = (
         process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING ? 
@@ -86,6 +87,7 @@ async function credsFromNumber(phoneNumberWithPlus) {
 }
 
 async function signLeaf(leaf) {
+    console.log("signLeaf was called ")
     const signable = ethers.utils.arrayify(ethers.BigNumber.from(leaf));
     // Generate the wallet from the real private key or the testing private key, depending on whether Sybil resistance is enabled
     const wallet = new ethers.Wallet(
