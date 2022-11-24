@@ -66,7 +66,7 @@ async function credsFromNumber(phoneNumberWithPlus) {
     );
     const secret = "0x" + randomBytes(16).toString("hex");
     const completedAt = (new Date()).toISOString().split("T")[0] //gets date in yyyy-mm-dd format
-    const completedAtInt = getDateAsInt(friendlyDate); 
+    const completedAtInt = getDateAsInt(completedAt); 
     assert.equal(issuer.length, 42, "invalid issuer");
     assert.equal(secret.length, 34, "invalid secret");
     
