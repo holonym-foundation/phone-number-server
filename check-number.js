@@ -64,7 +64,7 @@ async function credsFromNumber(phoneNumberWithPlus) {
             process.env.PHONENO_ISSUER_ADDRESS
     );
     const secret = "0x" + randomBytes(16).toString("hex");
-    const completedAt = Math.ceil(Date.now() / 1000) + 2208988800; // 2208988800000 is 70 year offset; Unix timestamps below 1970 are negative and we want to allow dates starting at 1900. Hence, all Holonym dates start at 01/01/1900 rather than Unix 01/01/1970
+    const completedAt = (new Date()).toISOString().split("T")[0] // converts current titme to yyyy-mm-dd format // NO LONGER USING Math.ceil(Date.now() / 1000) + 2208988800; // 2208988800000 is 70 year offset; Unix timestamps below 1970 are negative and we want to allow dates starting at 1900. Hence, all Holonym dates start at 01/01/1900 rather than Unix 01/01/1970
     assert.equal(issuer.length, 42, "invalid issuer");
     assert.equal(secret.length, 34, "invalid secret");
     
