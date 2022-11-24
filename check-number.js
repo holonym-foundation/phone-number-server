@@ -34,7 +34,7 @@ if(!process.env.NO_DB_ACCESS){
 // Sends a new code to number (E.164 format e.g. +13109273149)
 app.get("/send/:number", (req, res) => {
     // req.setTimeout(5000); // Will timeout if no response from Twilio after 5s
-
+    console.log("sending to ", req.params.number)
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
                 .verifications
                 .create({to: req.params.number, channel: "sms"})
