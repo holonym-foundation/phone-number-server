@@ -9,6 +9,7 @@ const dbConfig = process.env.NO_DB_ACCESS || require("../phone-number-db.config.
 const mysql = require("mysql");
 const express = require("express");
 const cors = require("cors");
+const { getDateAsInt } = require("./utils.js");
 
 const app = express();
 app.use(cors({origin: ["https://holonym.id", "https://www.holonym.id","http://localhost:3000","http://localhost:3001","http://localhost:3002"]}));
@@ -64,12 +65,13 @@ async function credsFromNumber(phoneNumberWithPlus) {
             process.env.PHONENO_ISSUER_ADDRESS
     );
     const secret = "0x" + randomBytes(16).toString("hex");
-    const completedAt = (new Date()).toISOString().split("T")[0] // converts current titme to yyyy-mm-dd format // NO LONGER USING Math.ceil(Date.now() / 1000) + 2208988800; // 2208988800000 is 70 year offset; Unix timestamps below 1970 are negative and we want to allow dates starting at 1900. Hence, all Holonym dates start at 01/01/1900 rather than Unix 01/01/1970
+    const completedAt = (new Date()).toISOString().split("T")[0] //gets date in yyyy-mm-dd format
+    const completedAtInt = getDateAsInt(friendlyDate); 
     assert.equal(issuer.length, 42, "invalid issuer");
     assert.equal(secret.length, 34, "invalid secret");
     
     const leaf = poseidon([
-           issuer, secret, phoneNumber, completedAt, 0, 0
+           issuer, secret, phoneNumber, completedAtInt, 0, 0
          ].map((x) => ethers.BigNumber.from(x).toString())
     );
     const signature = await signLeaf(leaf);
