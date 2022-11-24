@@ -1,3 +1,5 @@
+const assert = require("assert");
+
 function getDateAsInt(date) {
     // Format input
     const [year, month, day] = date.split("-");
