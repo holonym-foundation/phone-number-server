@@ -1,4 +1,4 @@
-export function getDateAsInt(date) {
+function getDateAsInt(date) {
     // Format input
     const [year, month, day] = date.split("-");
     assert.ok(year && month && day); // Make sure Y M D all given
@@ -7,3 +7,5 @@ export function getDateAsInt(date) {
     assert.ok(!isNaN(time));
     return time;
   }
+
+module.exports = { getDateAsInt : getDateAsInt }
