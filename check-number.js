@@ -70,11 +70,13 @@ async function credsFromNumber(phoneNumberWithPlus) {
     const completedAtInt = getDateAsInt(completedAt); 
     assert.equal(issuer.length, 42, "invalid issuer");
     assert.equal(secret.length, 34, "invalid secret");
+    // all credentials in the order they appear in the leaf preimage, and in string format:
+    const serializedCreds = [
+        issuer, secret, phoneNumber, completedAtInt, 0, 0
+    ].map((x) => ethers.BigNumber.from(x).toString())
     
-    const leaf = poseidon([
-           issuer, secret, phoneNumber, completedAtInt, 0, 0
-         ].map((x) => ethers.BigNumber.from(x).toString())
-    );
+    const leaf = poseidon(serializedCreds);
+
     const signature = await signLeaf(leaf);
     
     return { 
@@ -82,7 +84,8 @@ async function credsFromNumber(phoneNumberWithPlus) {
         issuer : issuer, 
         secret : secret, 
         completedAt : completedAt,
-        signature : signature
+        signature : signature,
+        serializedCreds : serializedCreds
      };
 }
 
