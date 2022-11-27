@@ -42,7 +42,7 @@ app.get("/send/:number", (req, res) => {
 })
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
-app.get("/getCredentials/:number/:code/:country", (req, res, next) => {
+app.get("/getCredentials/:number/:code/:country", (req, res) => {
     req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
     console.log("getCredentials was called ")
     try {
@@ -51,7 +51,13 @@ app.get("/getCredentials/:number/:code/:country", (req, res, next) => {
                 .create({to: req.params.number, code: req.params.code})
                 .then(verification => {
                     if(verification.status !== "approved"){throw "There was a problem verifying the with the code provided"}
-                    getCredentialsIfSafe(req.params.number, req.params.country, next, (credentials)=>res.send(credentials), )
+                    getCredentialsIfSafe(req.params.number, req.params.country, (credentials) => {
+                        if(credentials.error) {
+                            res.status(500).send(error)
+                        } else {
+                            res.send(credentials);
+                        }
+                    })
                 });
     } catch(e) {
         res.status(500).send(e);
@@ -105,17 +111,14 @@ async function signLeaf(leaf) {
     return signature;
 }
 
-function getCredentialsIfSafe(phoneNumber, country, next, callback) {
+function getCredentialsIfSafe(phoneNumber, country, callback) {
     console.log("getCredentialsIfSafe was called")
     assert(phoneNumber && country);
-    try {
-        getIsSafe(phoneNumber, country, (isSafe) => {
-            if (!isSafe) { next("phone number could not be determined to belong to a unique human"); return; }
-            credsFromNumber(phoneNumber).then(creds => callback(creds));
-        });
-    } catch (error) {
-        next(error);
-    }
+    getIsSafe(phoneNumber, country, (isSafe) => {
+        if (!isSafe) { callback({error : "phone number could not be determined to belong to a unique human" }); return; }
+        credsFromNumber(phoneNumber).then(creds => callback(creds));
+    });
+    
     
 }
 
