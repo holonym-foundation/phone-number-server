@@ -42,29 +42,22 @@ app.get("/send/:number", (req, res) => {
 })
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
-app.get("/getCredentials/:number/:code/:country", (req, res) => {
+app.get("/getCredentials/:number/:code/:country", (req, res, next) => {
     req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
     console.log("getCredentials was called ")
-    try {
-        client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
-                .verificationChecks
-                .create({to: req.params.number, code: req.params.code})
-                .then(verification => {
-                    if(verification.status !== "approved"){throw "There was a problem verifying the with the code provided"}
-                    getCredentialsIfSafe(req.params.number, req.params.country, (credentials) => {
-                        if(credentials.error) {
-                            res.status(500).send(error)
-                        } else {
-                            res.send(credentials);
-                        }
-                    })
-                });
-    } catch(e) {
-        res.status(500).send(e);
-    }
-    
-
+    client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
+            .verificationChecks
+            .create({to: req.params.number, code: req.params.code})
+            .then(verification => {
+                if(verification.status !== "approved"){throw "There was a problem verifying the with the code provided"}
+                getCredentialsIfSafe(req.params.number, req.params.country, next, (credentials)=>res.send(credentials), )
+            });
 })
+
+// Express error handling
+app.use(function (err, req, res, next) {
+    res.status(err.status || 500).send(err);
+  });
 
 /* Functions */
 async function credsFromNumber(phoneNumberWithPlus) {
@@ -111,32 +104,38 @@ async function signLeaf(leaf) {
     return signature;
 }
 
-function getCredentialsIfSafe(phoneNumber, country, callback) {
+function getCredentialsIfSafe(phoneNumber, country, next, callback) {
     console.log("getCredentialsIfSafe was called")
     assert(phoneNumber && country);
-    getIsSafe(phoneNumber, country, (isSafe) => {
-        if (!isSafe) { callback({error : "phone number could not be determined to belong to a unique human" }); return; }
-        credsFromNumber(phoneNumber).then(creds => callback(creds));
-    });
-    
+    try {
+        getIsSafe(phoneNumber, country, next, (isSafe) => {
+            if (!isSafe) throw "phone number could not be determined to belong to a unique human";
+            credsFromNumber(phoneNumber).then(creds => callback(creds));
+        });
+    } catch (error) {
+        next(error);
+    }
     
 }
 
-function getIsSafe(phoneNumber, country, callback) {
-    assert(phoneNumber && country);
-    axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
-    .then((response) => {
-        if(!("fraud_score" in response?.data)) {throw `Invalid response: ${JSON.stringify(response)} `}
-        _getNumberIsRegistered(phoneNumber, (result) => {
-            console.log("is registered", result);
-            if(result) {throw "Number has been registered already!"}
-            // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
-            if(!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING){
-                _setNumberIsRegistered(phoneNumber, ()=>{});
-            }
-            callback(response.data.fraud_score <= MAX_FRAUD_SCORE);
-        })  
-    })
+function getIsSafe(phoneNumber, country, next, callback) {
+    try {
+        assert(phoneNumber && country);
+        axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
+        .then((response) => {
+            if(!("fraud_score" in response?.data)) {throw `Invalid response: ${JSON.stringify(response)} `}
+            _getNumberIsRegistered(phoneNumber, (result) => {
+                console.log("is registered", result);
+                if(result) {throw "Number has been registered already!"}
+                // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
+                if(!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING){
+                    _setNumberIsRegistered(phoneNumber, ()=>{});
+                }
+                callback(response.data.fraud_score <= MAX_FRAUD_SCORE);
+            })  
+        })
+    } catch(err) { next(err) }
+    
 }
 
 
