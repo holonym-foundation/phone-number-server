@@ -45,13 +45,18 @@ app.get("/send/:number", (req, res) => {
 app.get("/getCredentials/:number/:code/:country", (req, res, next) => {
     req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
     console.log("getCredentials was called ")
-    client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
+    try {
+        client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
                 .verificationChecks
                 .create({to: req.params.number, code: req.params.code})
                 .then(verification => {
                     if(verification.status !== "approved"){throw "There was a problem verifying the with the code provided"}
                     getCredentialsIfSafe(req.params.number, req.params.country, next, (credentials)=>res.send(credentials), )
                 });
+    } catch(e) {
+        res.status(500).send(e);
+    }
+    
 
 })
 
