@@ -110,7 +110,7 @@ function getCredentialsIfSafe(phoneNumber, country, next, callback) {
     assert(phoneNumber && country);
     try {
         getIsSafe(phoneNumber, country, (isSafe) => {
-            if (!isSafe) throw "phone number could not be determined to belong to a unique human";
+            if (!isSafe) { next("phone number could not be determined to belong to a unique human"); return; }
             credsFromNumber(phoneNumber).then(creds => callback(creds));
         });
     } catch (error) {
