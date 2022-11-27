@@ -14,7 +14,7 @@ const { getDateAsInt } = require("./utils.js");
 const app = express();
 app.use(cors({origin: ["https://holonym.id", "https://www.holonym.id","http://localhost:3000","http://localhost:3001","http://localhost:3002"]}));
 const port = 3030;
-const MAX_FRAUD_SCORE = 2; // ipqualityscore.com defines fraud score. This constant will be used to only allow phone numbers with a <= fraud score.
+const MAX_FRAUD_SCORE = 0// For testing purposes. 75; // ipqualityscore.com defines fraud score. This constant will be used to only allow phone numbers with a <= fraud score.
 
 let connection;
 if(!process.env.NO_DB_ACCESS){
@@ -42,7 +42,7 @@ app.get("/send/:number", (req, res) => {
 })
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
-app.get("/getCredentials/:number/:code/:country", (req, res) => {
+app.get("/getCredentials/:number/:code/:country", (req, res, next) => {
     req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
     console.log("getCredentials was called ")
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
@@ -50,7 +50,7 @@ app.get("/getCredentials/:number/:code/:country", (req, res) => {
                 .create({to: req.params.number, code: req.params.code})
                 .then(verification => {
                     if(verification.status !== "approved"){throw "There was a problem verifying the with the code provided"}
-                    getCredentialsIfSafe(req.params.number, req.params.country, (credentials)=>res.send(credentials))
+                    getCredentialsIfSafe(req.params.number, req.params.country, next, (credentials)=>res.send(credentials), )
                 });
 
 })
@@ -100,13 +100,18 @@ async function signLeaf(leaf) {
     return signature;
 }
 
-function getCredentialsIfSafe(phoneNumber, country, callback) {
+function getCredentialsIfSafe(phoneNumber, country, next, callback) {
     console.log("getCredentialsIfSafe was called")
     assert(phoneNumber && country);
-    getIsSafe(phoneNumber, country, (isSafe) => {
-        if (!isSafe) throw "phone number could not be determined to belong to a unique human";
-        credsFromNumber(phoneNumber).then(creds => callback(creds));
-    });
+    try {
+        getIsSafe(phoneNumber, country, (isSafe) => {
+            if (!isSafe) throw "phone number could not be determined to belong to a unique human";
+            credsFromNumber(phoneNumber).then(creds => callback(creds));
+        });
+    } catch (error) {
+        next(error);
+    }
+    
 }
 
 function getIsSafe(phoneNumber, country, callback) {
