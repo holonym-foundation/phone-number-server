@@ -121,7 +121,6 @@ function getCredentialsIfSafe(phoneNumber, country, next, callback) {
 function getIsSafe(phoneNumber, country, next, callback) {
     try {
         assert(phoneNumber && country);
-        throw("test error");
         axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
         .then((response) => {
             if(!("fraud_score" in response?.data)) {throw `Invalid response: ${JSON.stringify(response)} `}
