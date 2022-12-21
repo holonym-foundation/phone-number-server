@@ -141,7 +141,7 @@ function getIsSafe(phoneNumber, country, next, callback) {
 
 
 function _setNumberIsRegistered(number, callback) {
-    connection.query(`INSERT INTO PhoneNumbers Number) VALUES ('${number}')`, (err, result) => {callback(err,result)});
+    connection.query(`INSERT INTO PhoneNumbers (Number) VALUES ('${number}')`, (err, result) => {callback(err,result)});
 }
 
 function _getNumberIsRegistered(number, callback) {
