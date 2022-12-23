@@ -49,7 +49,7 @@ app.get("/getCredentials/:number/:code/:country", (req, res, next) => {
             .verificationChecks
             .create({to: req.params.number, code: req.params.code})
             .then(verification => {
-                if(verification.status !== "approved"){throw "There was a problem verifying the with the code provided"}
+                if(verification.status !== "approved"){next("There was a problem verifying the with the code provided")}
                 getCredentialsIfSafe(req.params.number, req.params.country, next, (credentials)=>res.send(credentials), )
             });
 })
@@ -124,10 +124,10 @@ function getIsSafe(phoneNumber, country, next, callback) {
         assert(phoneNumber && country);
         axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
         .then((response) => {
-            if(!("fraud_score" in response?.data)) {throw `Invalid response: ${JSON.stringify(response)} `}
+            if(!("fraud_score" in response?.data)) {next(`Invalid response: ${JSON.stringify(response)} `)}
             _getNumberIsRegistered(phoneNumber, (err, result) => {
                 console.log("is registered", result);
-                if(result) {throw "Number has been registered already!"}
+                if(result) {next("Number has been registered already!")}
                 // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
                 if(!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING){
                     _setNumberIsRegistered(phoneNumber, ()=>{});
