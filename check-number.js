@@ -38,7 +38,8 @@ app.get("/send/:number", (req, res) => {
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
                 .verifications
                 .create({to: req.params.number, channel: "sms"})
-                .then(() => res.status(200));
+                .then(() => {res.status(200);return;});
+                
 })
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
@@ -50,13 +51,14 @@ app.get("/getCredentials/:number/:code/:country", (req, res, next) => {
             .create({to: req.params.number, code: req.params.code})
             .then(verification => {
                 if(verification.status !== "approved"){next("There was a problem verifying the with the code provided")}
-                getCredentialsIfSafe(req.params.number, req.params.country, next, (credentials)=>res.send(credentials), )
+                getCredentialsIfSafe(req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return}, )
             });
 })
 
 // Express error handling
 app.use(function (err, req, res, next) {
     res.status(err.status || 500).send(err);
+    return;
   });
 
 /* Functions */
