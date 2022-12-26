@@ -129,7 +129,7 @@ function getIsSafe(phoneNumber, country, next, callback) {
             if(!("fraud_score" in response?.data)) {next(`Invalid response: ${JSON.stringify(response)} `)}
             _getNumberIsRegistered(phoneNumber, (err, result) => {
                 console.log("is registered", result);
-                if(result) {next("Number has been registered already!")}
+                if(result && result.length) {next("Number has been registered already!")}
                 // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
                 if(!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING){
                     _setNumberIsRegistered(phoneNumber, ()=>{});
