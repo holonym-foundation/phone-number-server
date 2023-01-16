@@ -15,7 +15,7 @@ const putNumberParams = (value) => ({
 })
 
 // Returns true if number exists, false otherwise
-const numberExists = (number, callback) => ddb.getItem(getNumberParams(number), (err,data)=>callback("Item" in data))
+const numberExists = (number, callback) => ddb.getItem(getNumberParams(number), (err,data)=>callback(err, "Item" in data))
 
 // Adds number to the db
 const addNumber = (number) => ddb.putItem(putNumberParams(number), (err)=>{if(err) throw 'Error storing number'})
