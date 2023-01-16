@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/holonym-foundation/phone-number-server#readme",
   "dependencies": {
+    "aws-sdk": "^2.1295.0",
     "big-integer": "^1.6.51",
     "circomlibjs-old": "npm:circomlibjs@^0.0.8",
     "cors": "^2.8.5",
