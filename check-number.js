@@ -5,30 +5,15 @@ const { ethers } = require("ethers");
 const { poseidon } = require("circomlibjs-old");
 require("dotenv").config();
 const client = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-const dbConfig = process.env.NO_DB_ACCESS || require("../phone-number-db.config.js");
-const mysql = require("mysql");
 const express = require("express");
 const cors = require("cors");
 const { getDateAsInt } = require("./utils.js");
+const {addNumber, numberExists} = (require("./dynamodb.js"));
 
 const app = express();
 app.use(cors({origin: ["https://holonym.id", "https://www.holonym.id","https://app.holonym.id","http://localhost:3000","http://localhost:3001","http://localhost:3002"]}));
 const port = 3030;
 const MAX_FRAUD_SCORE = 75; // ipqualityscore.com defines fraud score. This constant will be used to only allow phone numbers with a <= fraud score.
-
-let connection;
-if(!process.env.NO_DB_ACCESS){
-    connection = mysql.createConnection({
-        host: dbConfig.HOST,
-        user: dbConfig.USER,
-        password: dbConfig.PASSWORD,
-        database: dbConfig.DB
-      });
-      connection.connect(error => {
-          if (error) throw error;
-          console.log("Successfully connected to database");
-      });
-}
 
 
 // Sends a new code to number (E.164 format e.g. +13109273149)
@@ -127,12 +112,12 @@ function getIsSafe(phoneNumber, country, next, callback) {
         axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
         .then((response) => {
             if(!("fraud_score" in response?.data)) {next(`Invalid response: ${JSON.stringify(response)} `)}
-            _getNumberIsRegistered(phoneNumber, (err, result) => {
+            numberExists(phoneNumber, (err, result) => {
                 console.log("is registered", result);
-                if(result && result.length && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {next("Number has been registered already!")}
+                if(result && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {next("Number has been registered already!")}
                 // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
                 if(!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING){
-                    _setNumberIsRegistered(phoneNumber, ()=>{});
+                    addNumber(phoneNumber);
                 }
                 callback(response.data.fraud_score <= MAX_FRAUD_SCORE);
             })  
@@ -142,13 +127,13 @@ function getIsSafe(phoneNumber, country, next, callback) {
 }
 
 
-function _setNumberIsRegistered(number, callback) {
-    connection.query(`INSERT INTO PhoneNumbers (Number) VALUES ('${number}')`, (err, result) => {callback(err,result)});
-}
+// function _setNumberIsRegistered(number, callback) {
+//     connection.query(`INSERT INTO PhoneNumbers (Number) VALUES ('${number}')`, (err, result) => {callback(err,result)});
+// }
 
-function _getNumberIsRegistered(number, callback) {
-    connection.query(`SELECT Number FROM PhoneNumbers WHERE Number='${number}'`, (err, result) => {callback(err, result)});
-}
+// function _getNumberIsRegistered(number, callback) {
+//     connection.query(`SELECT Number FROM PhoneNumbers WHERE Number='${number}'`, (err, result) => {callback(err, result)});
+// }
 
 
 /* - */
