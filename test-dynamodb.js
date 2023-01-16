@@ -14,8 +14,15 @@ const putNumberParams = (value) => ({
         Item: {'phoneNumber':{S:`${value}`}}
 })
 
+// Returns true if number exists, false otherwise
+const numberExists = (number, callback) => ddb.getItem(getNumberParams(number), (err,data)=>callback("Item" in data))
 
-// get an item: ddb.getItem(getNumberParams('+13109273149'), (e,d)=>console.log("er",e,"data",d))
-// put an item:
-ddb.putItem(putNumberParams('deleteme'), (e,d,)=>console.log("er",e,"data",d))
-// ddb.listTables({}, (err,data)=>console.log("err",err,"data",data));
+// Adds number to the db
+const addNumber = (number) => ddb.putItem(putNumberParams(number), (err)=>{if(err) throw 'Error storing number'})
+
+// Usage: 
+// addNumber('+1234567890')
+// numberExists('+1234567890', (x)=>console.log('this should now be true', x))
+
+module.exports = {addNumber:addNumber, numberExists:numberExists}
+
