@@ -69,7 +69,7 @@ async function credsFromNumber(phoneNumberWithPlus) {
     const leaf = poseidon(serializedCreds);
 
     const signature = await signLeaf(leaf);
-    
+
     return { 
         phoneNumber: phoneNumber, 
         issuer : issuer, 
@@ -96,8 +96,11 @@ function getCredentialsIfSafe(phoneNumber, country, next, callback) {
     assert(phoneNumber && country);
     try {
         getIsSafe(phoneNumber, country, next, (isSafe) => {
-            if (!isSafe) next("phone number could not be determined to belong to a unique human");
-            credsFromNumber(phoneNumber).then(creds => callback(creds));
+            if (!isSafe) {
+                next("phone number could not be determined to belong to a unique human")
+            } else {
+                credsFromNumber(phoneNumber).then(creds => callback(creds));
+            }
         });
     } catch (error) {
         console.error("error", error)
@@ -114,7 +117,7 @@ function getIsSafe(phoneNumber, country, next, callback) {
             if(!("fraud_score" in response?.data)) {next(`Invalid response: ${JSON.stringify(response)} `)}
             numberExists(phoneNumber, (err, result) => {
                 console.log("is registered", result);
-                if(result && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {next("Number has been registered already!")}
+                if(result && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {next("Number has been registered already!"); return}
                 // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
                 if(!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING){
                     addNumber(phoneNumber);
