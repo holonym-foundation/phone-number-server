@@ -2,12 +2,15 @@ const assert = require("assert");
 const axios = require("axios");
 const { issue, getPubkey, getAddress } = require("holonym-wasm-issuer");
 const { ethers } = require("ethers");
+const { randomBytes } = require("crypto");
 const { poseidon } = require("circomlibjs-old");
 require("dotenv").config();
 const client = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const express = require("express");
 const cors = require("cors");
-const {addNumber, numberExists} = (require("./dynamodb.js"));
+const { addNumber, numberExists } = (require("./dynamodb.js"));
+const { getDateAsInt } = require("./utils.js");
+
 
 const app = express();
 app.use(cors({origin: ["https://holonym.id", "https://www.holonym.id","https://app.holonym.id","http://localhost:3000","http://localhost:3001","http://localhost:3002"]}));
@@ -16,8 +19,8 @@ const MAX_FRAUD_SCORE = 75; // ipqualityscore.com defines fraud score. This cons
 
 const PRIVKEY = process.env[`${
     (
-        process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING && 
-        process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING === "true"
+        (process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) && 
+        (process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING === "true")
     ) ? "TESTING" : "PRODUCTION"
 }_PRIVKEY`];
 
@@ -33,9 +36,20 @@ app.get("/send/:number", (req, res) => {
                 .then(() => {res.status(200);return;});
                 
 })
-
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
-app.get("/getCredentials/:number/:code/:country", (req, res, next) => {
+app.get("/getCredentials/v2/:number/:code/:country/", (req, res, next) => {
+    req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
+    console.log("getCredentials v2 was called ")
+    client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
+            .verificationChecks
+            .create({to: req.params.number, code: req.params.code})
+            .then(verification => {
+                if(verification.status !== "approved"){next("There was a problem verifying the with the code provided")}
+                getCredentialsIfSafe("v2", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return}, )
+            });
+})
+
+app.get("/getCredentials/:number/:code/:country/", (req, res, next) => {
     req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
     console.log("getCredentials was called ")
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
@@ -43,7 +57,7 @@ app.get("/getCredentials/:number/:code/:country", (req, res, next) => {
             .create({to: req.params.number, code: req.params.code})
             .then(verification => {
                 if(verification.status !== "approved"){next("There was a problem verifying the with the code provided")}
-                getCredentialsIfSafe(req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return}, )
+                getCredentialsIfSafe("v1", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return}, )
             });
 })
 
@@ -54,10 +68,45 @@ app.use(function (err, req, res, next) {
   });
 
 /* Functions */
-async function credsFromNumber(phoneNumberWithPlus) {
+
+// This version will be deprecated in favor of credsFromNumberV2
+async function credsFromNumberDeprecating(phoneNumberWithPlus) {
     console.log("credsFromNumber was called ")
     const phoneNumber = phoneNumberWithPlus.replace("+", "");
-    return issue(PRIVKEY, phoneNumber, 0);
+    const issuer = (
+        process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING ? 
+            process.env.TESTING_PHONENO_ISSUER_ADDRESS 
+            : 
+            process.env.PHONENO_ISSUER_ADDRESS
+    );
+    const secret = "0x" + randomBytes(16).toString("hex");
+    const completedAt = (new Date()).toISOString().split("T")[0] //gets date in yyyy-mm-dd format
+    const completedAtInt = getDateAsInt(completedAt); 
+    assert.equal(issuer.length, 42, "invalid issuer");
+    assert.equal(secret.length, 34, "invalid secret");
+    // all credentials in the order they appear in the leaf preimage, and in string format:
+    const serializedCreds = [
+        issuer, secret, phoneNumber, completedAtInt, 0, 0
+    ].map((x) => ethers.BigNumber.from(x).toString())
+
+    const leaf = poseidon(serializedCreds);
+
+    const signature = await signLeaf(leaf);
+
+    return { 
+        phoneNumber: phoneNumber, 
+        issuer : issuer, 
+        secret : secret, 
+        completedAt : completedAt,
+        signature : signature,
+        serializedCreds : serializedCreds
+     };
+}
+
+async function credsFromNumberV2(phoneNumberWithPlus) {
+    console.log("credsFromNumber was called ")
+    const phoneNumber = phoneNumberWithPlus.replace("+", "");
+    return issue(PRIVKEY, phoneNumber, "0");
 }
 
 async function signLeaf(leaf) {
@@ -71,7 +120,8 @@ async function signLeaf(leaf) {
     return signature;
 }
 
-function getCredentialsIfSafe(phoneNumber, country, next, callback) {
+function getCredentialsIfSafe(version, phoneNumber, country, next, callback) {
+    let credsFromNumber = version == "v2" ? credsFromNumberV2 : credsFromNumberDeprecating
     console.log("getCredentialsIfSafe was called")
     assert(phoneNumber && country);
     try {
