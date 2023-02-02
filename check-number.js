@@ -1,13 +1,12 @@
 const assert = require("assert");
 const axios = require("axios");
-const { randomBytes } = require("crypto");
+const { issue, getPubkey, getAddress } = require("holonym-wasm-issuer");
 const { ethers } = require("ethers");
 const { poseidon } = require("circomlibjs-old");
 require("dotenv").config();
 const client = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const express = require("express");
 const cors = require("cors");
-const { getDateAsInt } = require("./utils.js");
 const {addNumber, numberExists} = (require("./dynamodb.js"));
 
 const app = express();
@@ -15,6 +14,14 @@ app.use(cors({origin: ["https://holonym.id", "https://www.holonym.id","https://a
 const port = 3030;
 const MAX_FRAUD_SCORE = 75; // ipqualityscore.com defines fraud score. This constant will be used to only allow phone numbers with a <= fraud score.
 
+const PRIVKEY = process.env[`${
+    (
+        process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING && 
+        process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING === "true"
+    ) ? "TESTING" : "PRODUCTION"
+}_PRIVKEY`];
+
+const ADDRESS = getAddress(PRIVKEY);
 
 // Sends a new code to number (E.164 format e.g. +13109273149)
 app.get("/send/:number", (req, res) => {
@@ -50,34 +57,7 @@ app.use(function (err, req, res, next) {
 async function credsFromNumber(phoneNumberWithPlus) {
     console.log("credsFromNumber was called ")
     const phoneNumber = phoneNumberWithPlus.replace("+", "");
-    const issuer = (
-        process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING ? 
-            process.env.TESTING_PHONENO_ISSUER_ADDRESS 
-            : 
-            process.env.PHONENO_ISSUER_ADDRESS
-    );
-    const secret = "0x" + randomBytes(16).toString("hex");
-    const completedAt = (new Date()).toISOString().split("T")[0] //gets date in yyyy-mm-dd format
-    const completedAtInt = getDateAsInt(completedAt); 
-    assert.equal(issuer.length, 42, "invalid issuer");
-    assert.equal(secret.length, 34, "invalid secret");
-    // all credentials in the order they appear in the leaf preimage, and in string format:
-    const serializedCreds = [
-        issuer, secret, phoneNumber, completedAtInt, 0, 0
-    ].map((x) => ethers.BigNumber.from(x).toString())
-    
-    const leaf = poseidon(serializedCreds);
-
-    const signature = await signLeaf(leaf);
-
-    return { 
-        phoneNumber: phoneNumber, 
-        issuer : issuer, 
-        secret : secret, 
-        completedAt : completedAt,
-        signature : signature,
-        serializedCreds : serializedCreds
-     };
+    return issue(PRIVKEY, phoneNumber, 0);
 }
 
 async function signLeaf(leaf) {

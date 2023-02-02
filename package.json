@@ -23,6 +23,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "ethers": "^5.7.2",
+    "holonym-wasm-issuer": "^0.2.2",
     "mysql": "^2.18.1",
     "twilio": "^3.83.3"
   }
