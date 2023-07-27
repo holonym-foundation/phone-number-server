@@ -44,8 +44,11 @@ app.get("/getCredentials/v2/:number/:code/:country/", (req, res, next) => {
             .verificationChecks
             .create({to: req.params.number, code: req.params.code})
             .then(verification => {
-                if(verification.status !== "approved"){next("There was a problem verifying the with the code provided")}
+                if(verification.status !== "approved"){next("There was a problem verifying the number with the code provided")}
                 getCredentialsIfSafe("v2", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return}, )
+            }).catch(err => {
+                console.log('getCredentials v2: error', err)
+                next("There was a problem verifying the number with the code provided")
             });
 })
 
