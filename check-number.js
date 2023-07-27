@@ -51,11 +51,12 @@ app.get("/getCredentials/v2/:number/:code/:country/", (req, res, next) => {
 
 app.get("/getCredentials/:number/:code/:country/", (req, res, next) => {
     req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
-    console.log("getCredentials was called ")
+    console.log("getCredentials was called for numver ", req.params.number) 
     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
             .verificationChecks
             .create({to: req.params.number, code: req.params.code})
             .then(verification => {
+                console.log("verification, ", verification)
                 if(verification.status !== "approved"){next("There was a problem verifying the with the code provided")}
                 getCredentialsIfSafe("v1", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return}, )
             });
@@ -63,6 +64,7 @@ app.get("/getCredentials/:number/:code/:country/", (req, res, next) => {
 
 // Express error handling
 app.use(function (err, req, res, next) {
+    console.log("error: ", err);
     res.status(err.status || 500).send(err);
     return;
   });
@@ -104,7 +106,7 @@ async function credsFromNumberDeprecating(phoneNumberWithPlus) {
 }
 
 async function credsFromNumberV2(phoneNumberWithPlus) {
-    console.log("credsFromNumber was called ")
+    console.log("credsFromNumber was called with number ", phoneNumberWithPlus)
     const phoneNumber = phoneNumberWithPlus.replace("+", "");
     return issue(PRIVKEY, phoneNumber, "0");
 }
@@ -127,6 +129,7 @@ function getCredentialsIfSafe(version, phoneNumber, country, next, callback) {
     try {
         getIsSafe(phoneNumber, country, next, (isSafe) => {
             if (!isSafe) {
+                console.log(`phone number ${phoneNumber} could not be determined to belong to a unique human`)
                 next("phone number could not be determined to belong to a unique human")
             } else {
                 credsFromNumber(phoneNumber).then(creds => callback(creds));
