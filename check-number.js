@@ -71,7 +71,7 @@ app.get("/getCredentials/v3/:number/:code/:country/", async (req, res, next) => 
         
     } catch (err) {
         console.log('getCredentials v3: error', err)
-        next("There was a problem verifying the number with the code provided")
+        next(err)
     }
 })
 
