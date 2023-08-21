@@ -4,6 +4,7 @@
   "description": "",
   "main": "check-number.js",
   "scripts": {
+    "start": "node check-number.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
