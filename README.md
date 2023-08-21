@@ -20,13 +20,13 @@ Set environment variables. You might need to contact the team to get the values 
 cp .env.example .env
 ```
 
-Run redis on localhost:6379. You can do this with redis-server OR docker.
+Run redis on localhost:6379. You can do this with redis-server OR docker. The docker command might be different depending on your OS.
 
 ```bash
 # redis-server
 redis-server
 
-# Docker
+# docker
 docker run -p 6379:6379 redis
 ```
 
