@@ -17,7 +17,7 @@ basicAuth.username = process.env.MESSENTE_API_USERNAME;
 basicAuth.password = process.env.MESSENTE_API_PASSWORD;
 const api = new Messente.OmnimessageApi();
 
-const getOTP = () => crypto.randomInt(0, 1000000)
+const getOTP = () => crypto.randomInt(0,1000000).toString().padStart(6,'0')
 
 const cacheOTP = async (phoneNumber, otp) => {
     await redis.set(`OTP:${phoneNumber}`, otp, 'EX',OTP_EXPIRY)
