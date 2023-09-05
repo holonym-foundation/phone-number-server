@@ -26,9 +26,24 @@ const ADDRESS = getAddress(PRIVKEY);
 // Sends a new code to number (E.164 format e.g. +13109273149)
 app.get("/send/v3/:number", async (req, res) => {
     console.log("sending to ", req.params.number)
-    await begin(req.params.number)
+    // Call the function to get the public IP address
+    const ipAddr = await getPublicIPAddress();
+    await begin(req.params.number, ipAddr)
     res.sendStatus(200)
 })
+
+// Function to fetch the public IP address
+async function getPublicIPAddress() {
+  try {
+    const response = await axios.get('http://httpbin.org/ip');
+    const publicIP = response.data.origin;
+    console.log(`Your public IP address is: ${publicIP}`);
+    return publicIP
+  } catch (err) {
+    console.error('Error fetching public IP address:', err);
+    next(err.message)
+  }
+}
 
 // Sends a new code to number (E.164 format e.g. +13109273149)
 app.get("/send/:number", (req, res) => {
