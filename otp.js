@@ -21,9 +21,9 @@ const api = new Messente.OmnimessageApi();
 
 const getOTP = () => crypto.randomInt(0,1000000).toString().padStart(6,'0')
 
-const cacheCountryRequest = async (country, phoneNumber) => { 
+const cacheCountryRequest = async (ipAddr, country) => {
     const count = await redis.hIncrBy('country_requests', country, 1)
-    await redis.rPush(country, phoneNumber)
+    await redis.rPush(country, ipAddr)
     await redis.expire('country_requests', 60)
     await redis.expire(country, 60) 
     if(count > MAX_COUNTRY_ATTEMP) {
