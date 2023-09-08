@@ -2,12 +2,12 @@ require('dotenv').config();
 const { createClient } = require('redis');
 const crypto = require('crypto');
 const Messente = require('messente_api');
-const geoip = require('geoip-lite');
 
 const MAX_OTP_ATTEMPTS = 5;
 const MAX_OTP_ATTEMPTS_COOLDOWN = 60 * 30; // 30 minutes
 const OTP_EXPIRY = 60 * 5; // 5 minutes
-const MAX_COUNTRY_ATTEMP = 100;
+const MAX_COUNTRY_ATTEMP_PER_MINUTE = 10;
+const MAX_COUNTRY_ATTEMP_PER_HOUR = 200;
 
 const redis = createClient();
 redis.on('error', err => console.log('Redis Client Error', err));
@@ -21,12 +21,16 @@ const api = new Messente.OmnimessageApi();
 
 const getOTP = () => crypto.randomInt(0,1000000).toString().padStart(6,'0')
 
-const cacheCountryRequest = async (ipAddr, country) => {
-    const count = await redis.hIncrBy('country_requests', country, 1)
-    await redis.rPush(country, ipAddr)
-    await redis.expire('country_requests', 60)
-    await redis.expire(country, 60) 
-    if(count > MAX_COUNTRY_ATTEMP) {
+const cacheCountryRequest = async (countryCode) => {
+    const minuteKey = `minute:${countryCode}`;
+    const hourKey = `hour:${countryCode}`;
+
+    const countMinut = await redis.hIncrBy('country_requests_minutes', minuteKey, 1);
+    const countHour = await redis.hIncrBy('country_requests_hours', hourKey, 1);
+
+    await redis.expire('country_requests_minutes', 60)
+    await redis.expire('country_requests_hours', 3600) 
+    if(countMinut > MAX_COUNTRY_ATTEMP_PER_MINUTE || countHour > MAX_COUNTRY_ATTEMP_PER_HOUR) {
         throw new Error('Too many recent attempts from country ', country) 
     }
 }
@@ -74,14 +78,11 @@ const sendOTP = async (phoneNumber, otp) => {
     })
 }
 
-async function begin(phoneNumber, ipAddresses) {
-    const geoData = geoip.lookup(ipAddresses)
-    if(geoData && geoData.country) {
-        const otp = getOTP();
-        await cacheCountryRequest(geoData.country, phoneNumber)
-        await cacheOTP(phoneNumber, otp);
-        await sendOTP(phoneNumber, otp);
-    }
+async function begin(phoneNumber, countryCode) {
+    const otp = getOTP();
+    await cacheCountryRequest(countryCode)
+    await cacheOTP(phoneNumber, otp);
+    await sendOTP(phoneNumber, otp);
 }
 
 async function verify(phoneNumber, otp) {

@@ -27,9 +27,8 @@ const ADDRESS = getAddress(PRIVKEY);
 // Sends a new code to number (E.164 format e.g. +13109273149)
 app.get("/send/v3/:number", async (req, res) => {
     console.log("sending to ", req.params.number)
-    const ipAddr = req.socket.remoteAddress;
     const countryCode = getCountryFromPhoneNumber(req.params.number);
-    await begin(req.params.number, ipAddr, countryCode)
+    await begin(req.params.number, countryCode)
     res.sendStatus(200)
 })
 
