@@ -5,6 +5,7 @@ const express = require("express");
 const cors = require("cors");
 const { addNumber, numberExists } = (require("./dynamodb.js"));
 const { begin, verify } = require("./otp.js");
+const PhoneNumber = require('libphonenumber-js');
 
 require("dotenv").config();
 const client = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -26,9 +27,22 @@ const ADDRESS = getAddress(PRIVKEY);
 // Sends a new code to number (E.164 format e.g. +13109273149)
 app.get("/send/v3/:number", async (req, res) => {
     console.log("sending to ", req.params.number)
-    await begin(req.params.number)
+    const countryCode = getCountryFromPhoneNumber(req.params.number);
+    await begin(req.params.number, countryCode)
     res.sendStatus(200)
 })
+
+function getCountryFromPhoneNumber(phoneNumber) {
+    try {
+        const parsedPhoneNumber = PhoneNumber(phoneNumber);
+        const countryCode = parsedPhoneNumber.country;
+
+        return countryCode;
+    } catch(err) {
+        console.error('Error parsing phone number:', err);
+        next(err.message)
+    }
+}
 
 // Sends a new code to number (E.164 format e.g. +13109273149)
 app.get("/send/:number", (req, res) => {

@@ -25,10 +25,12 @@
     "dotenv": "^16.0.3",
     "ethers": "^5.7.2",
     "express": "^4.18.2",
+    "geoip-lite": "^1.4.7",
     "holonym-wasm-issuer": "^0.2.2",
+    "libphonenumber-js": "^1.10.44",
     "messente_api": "^1.5.0",
     "mysql": "^2.18.1",
-    "redis": "^4.6.7",
+    "redis": "^4.6.8",
     "twilio": "^3.83.3"
   }
 }

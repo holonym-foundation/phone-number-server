@@ -6,6 +6,8 @@ const Messente = require('messente_api');
 const MAX_OTP_ATTEMPTS = 5;
 const MAX_OTP_ATTEMPTS_COOLDOWN = 60 * 30; // 30 minutes
 const OTP_EXPIRY = 60 * 5; // 5 minutes
+const MAX_COUNTRY_ATTEMP_PER_MINUTE = 10;
+const MAX_COUNTRY_ATTEMP_PER_HOUR = 200;
 
 const redis = createClient();
 redis.on('error', err => console.log('Redis Client Error', err));
@@ -18,6 +20,20 @@ basicAuth.password = process.env.MESSENTE_API_PASSWORD;
 const api = new Messente.OmnimessageApi();
 
 const getOTP = () => crypto.randomInt(0,1000000).toString().padStart(6,'0')
+
+const cacheCountryRequest = async (countryCode) => {
+    const minuteKey = `minute:${countryCode}`;
+    const hourKey = `hour:${countryCode}`;
+
+    const countMinut = await redis.hIncrBy('country_requests_minutes', minuteKey, 1);
+    const countHour = await redis.hIncrBy('country_requests_hours', hourKey, 1);
+
+    await redis.expire('country_requests_minutes', 60)
+    await redis.expire('country_requests_hours', 3600) 
+    if(countMinut > MAX_COUNTRY_ATTEMP_PER_MINUTE || countHour > MAX_COUNTRY_ATTEMP_PER_HOUR) {
+        throw new Error('Too many recent attempts from country ', country) 
+    }
+}
 
 const cacheOTP = async (phoneNumber, otp) => {
     await redis.set(`OTP:${phoneNumber}`, otp, 'EX',OTP_EXPIRY)
@@ -62,8 +78,9 @@ const sendOTP = async (phoneNumber, otp) => {
     })
 }
 
-async function begin(phoneNumber) {
+async function begin(phoneNumber, countryCode) {
     const otp = getOTP();
+    await cacheCountryRequest(countryCode)
     await cacheOTP(phoneNumber, otp);
     await sendOTP(phoneNumber, otp);
 }
