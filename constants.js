@@ -8,6 +8,8 @@ const sessionStatusEnum = {
   REFUNDED: "REFUNDED",
 };
 
+const maxAttemptsPerSession = 3;
+
 const supportedChainIds = [
   1, // Ethereum
   10, // Optimism
@@ -45,6 +47,7 @@ const cmcSlugToID = {
 
 module.exports = {
   sessionStatusEnum,
+  maxAttemptsPerSession,
   supportedChainIds,
   phoneServerPaymentAddress,
   ethereumProvider,
