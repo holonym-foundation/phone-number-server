@@ -5,6 +5,7 @@ const express = require("express");
 const cors = require("cors");
 const { addNumber, numberExists } = (require("./dynamodb.js"));
 const { begin, verify } = require("./otp.js");
+const { sessionsRouter } = require("./sessions.js");
 const PhoneNumber = require('libphonenumber-js');
 
 require("dotenv").config();
@@ -143,6 +144,8 @@ function registerIfSafe(phoneNumber, country, next, callback) {
     } catch(err) { next(err) }
     
 }
+
+app.use("/sessions", sessionsRouter);
 
 /* - */
 app.listen(port);

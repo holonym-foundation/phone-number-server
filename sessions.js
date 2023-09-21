@@ -352,11 +352,11 @@ async function getSessions(req, res) {
   }
 }
 
-const router = express.Router();
+const sessionsRouter = express.Router();
 
-router.post("/", postSession);
-router.post("/:_id/payment", payment);
-router.post("/:_id/refund", refund);
-router.get("/", getSessions);
+sessionsRouter.post("/", postSession);
+sessionsRouter.post("/:_id/payment", payment);
+sessionsRouter.post("/:_id/refund", refund);
+sessionsRouter.get("/", getSessions);
 
-module.exports.router = router;
+module.exports.sessionsRouter = sessionsRouter;
