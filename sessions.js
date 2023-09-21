@@ -58,7 +58,7 @@ async function validateTxForSessionPayment(chainId, txHash) {
 
   // NOTE: This const must stay in sync with the frontend.
   // We allow a 2% margin of error.
-  const expectedAmountInUSD = 8.0 * 0.98;
+  const expectedAmountInUSD = 3.5 * 0.98;
 
   let expectedAmountInToken;
   if ([1, 10].includes(chainId)) {
@@ -196,7 +196,7 @@ async function postSession(req, res) {
     return res.status(201).json({ 
       id,
       sigDigest,
-      status: sessionStatusEnum.NEEDS_PAYMENT,
+      sessionStatus: sessionStatusEnum.NEEDS_PAYMENT,
       numAttempts: 0,
     });
   } catch (err) {
@@ -247,13 +247,21 @@ async function payment(req, res) {
       id,
       null,
       sessionStatusEnum.IN_PROGRESS,
-      chainId,
+      chainId.toString(),
       txHash,
       null,
       null
     )
+    
+    return res.status(200).json({ success: true });
   } catch (err) {
-    console.error("Error creating session:", err);
+    if (err.response) {
+      console.error("session payment endpoint: error:", err.response.data);
+    } else if (err.request) {
+      console.error("session payment endpoint: error:", err.request.data);
+    } else {
+      console.error("session payment endpoint: error:", err);
+    }
     return res.status(500).json({ error: "An unknown error occurred" });
   }
 }
@@ -282,7 +290,7 @@ async function refund(req, res) {
       return res.status(404).json({ error: "Session not found" });
     }
 
-    if (session.Item.status.S !== sessionStatusEnum.VERIFICATION_FAILED) {
+    if (session.Item.sessionStatus.S !== sessionStatusEnum.VERIFICATION_FAILED) {
       return res
         .status(400)
         .json({ error: "Only failed verifications can be refunded." });
@@ -352,8 +360,8 @@ async function getSessions(req, res) {
 const sessionsRouter = express.Router();
 
 sessionsRouter.post("/", postSession);
-sessionsRouter.post("/:_id/payment", payment);
-sessionsRouter.post("/:_id/refund", refund);
+sessionsRouter.post("/:id/payment", payment);
+sessionsRouter.post("/:id/refund", refund);
 sessionsRouter.get("/", getSessions);
 
 module.exports.sessionsRouter = sessionsRouter;

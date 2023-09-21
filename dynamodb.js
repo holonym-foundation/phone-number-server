@@ -20,13 +20,16 @@ const numberExists = (number, callback) => ddb.getItem(getNumberParams(number), 
 // Adds number to the db
 const addNumber = (number) => ddb.putItem(putNumberParams(number), (err)=>{if(err) throw 'Error storing number'})
 
-const putPhoneSession = (id, sigDigest, status, chainId, txHash, numAttempts, refundTxHash) => {
+/**
+ * `status` is a reserved keyword in DynamoDB, so we name it `sessionStatus`.
+ */
+const putPhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash) => {
     const params = {
         TableName: 'phone-sessions',
         Item: {
             'id': { S: `${id}` },
             'sigDigest': { S: `${sigDigest}` },
-            'status': { S: `${status}` },
+            'sessionStatus': { S: `${sessionStatus}` },
             ...(chainId ? { 'chainId': { N: `${chainId}` } } : {}),
             ...(txHash ? { 'txHash': { S: `${txHash}` } } : {}),
             'numAttempts': { N: `${numAttempts}` },
@@ -36,17 +39,19 @@ const putPhoneSession = (id, sigDigest, status, chainId, txHash, numAttempts, re
     return ddb.putItem(params).promise()
 }
 
-const updatePhoneSession = (id, sigDigest, status, chainId, txHash, numAttempts, refundTxHash) => {
-        const updateExpression = 'SET ' +
-                (sigDigest ? 'sigDigest = :sigDigest, ' : '') +
-                (status ? 'status = :status, ' : '') +
-                (chainId ? 'chainId = :chainId, ' : '') +
-                (txHash ? 'txHash = :txHash, ' : '') +
-                (numAttempts ? 'numAttempts = :numAttempts' : '') +
-                (refundTxHash ? 'refundTxHash = :refundTxHash' : '');
+const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash) => {
+        const expressions = [
+            (sigDigest ? 'sigDigest = :sigDigest' : ''),
+            (sessionStatus ? 'sessionStatus = :sessionStatus' : ''),
+            (chainId ? 'chainId = :chainId' : ''),
+            (txHash ? 'txHash = :txHash' : ''),
+            (numAttempts ? 'numAttempts = :numAttempts' : ''),
+            (refundTxHash ? 'refundTxHash = :refundTxHash' : '')
+        ].filter(x => x !== '').join(', ');
+        const updateExpression = 'SET ' + expressions;
         const expressionAttributeValues = {
                 ...(sigDigest ? { ':sigDigest': { S: sigDigest } } : {}),
-                ...(status ? { ':status': { S: status } } : {}),
+                ...(sessionStatus ? { ':sessionStatus': { S: sessionStatus } } : {}),
                 ...(chainId ? { ':chainId': { N: chainId } } : {}),
                 ...(txHash ? { ':txHash': { S: txHash } } : {}),
                 ...(numAttempts ? { ':numAttempts': { N: numAttempts } } : {}),

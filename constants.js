@@ -20,7 +20,7 @@ if (process.env.NODE_ENV === "development") {
 }
 
 // NOTE: This const must stay in sync with the frontend.
-const phoneServerPaymentAddress = "0x50C49b7305ac450CC2D2BA5fA1b1cc3168cd34d5";
+const phoneServerPaymentAddress = "0x50c49b7305ac450cc2d2ba5fa1b1cc3168cd34d5";
 
 const ethereumProvider = new ethers.providers.AlchemyProvider(
   "homestead",

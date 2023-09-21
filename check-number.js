@@ -52,7 +52,7 @@ app.post("/send/v4", async (req, res) => {
             return res.status(400).send("Invalid sessionId")
         }
 
-        if (session.Item.status.S !== sessionStatusEnum.IN_PROGRESS) {
+        if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
             return res.status(400).send("Session is not in progress")
         }
 
@@ -127,7 +127,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             return res.status(400).send("Invalid sessionId")
         }
 
-        if (session.Item.status.S !== sessionStatusEnum.IN_PROGRESS) {
+        if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
             return res.status(400).send("Session is not in progress")
         }
 
