@@ -19,6 +19,7 @@ if (process.env.NODE_ENV === "development") {
   supportedChainIds.push(420); // Optimism goerli
 }
 
+// NOTE: This const must stay in sync with the frontend.
 const phoneServerPaymentAddress = "0x50C49b7305ac450CC2D2BA5fA1b1cc3168cd34d5";
 
 const ethereumProvider = new ethers.providers.AlchemyProvider(
