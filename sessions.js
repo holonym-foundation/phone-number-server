@@ -159,7 +159,6 @@ async function refundMintFee(session, to) {
     null,
     null,
     null,
-    null,
     receipt.transactionHash
   )
 
@@ -188,7 +187,6 @@ async function postSession(req, res) {
       id,
       sigDigest,
       sessionStatusEnum.NEEDS_PAYMENT,
-      null,
       null,
       null,
       0,
@@ -251,7 +249,6 @@ async function payment(req, res) {
       sessionStatusEnum.IN_PROGRESS,
       chainId,
       txHash,
-      null,
       null,
       null
     )
