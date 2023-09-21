@@ -27,10 +27,10 @@ const putPhoneSession = (id, sigDigest, status, chainId, txHash, numAttempts, re
             'id': { S: `${id}` },
             'sigDigest': { S: `${sigDigest}` },
             'status': { S: `${status}` },
-            'chainId': { N: `${chainId}` },
-            'txHash': { S: `${txHash}` },
+            ...(chainId ? { 'chainId': { N: `${chainId}` } } : {}),
+            ...(txHash ? { 'txHash': { S: `${txHash}` } } : {}),
             'numAttempts': { N: `${numAttempts}` },
-            'refundTxHash': { S: `${refundTxHash}` },
+            ...(refundTxHash ? { 'refundTxHash': { S: `${refundTxHash}` } } : {})
         }
     }
     return ddb.putItem(params).promise()

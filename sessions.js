@@ -200,7 +200,7 @@ async function postSession(req, res) {
       numAttempts: 0,
     });
   } catch (err) {
-    console.log("Error encountered", err.message);
+    console.log("postSession: Error:", err.message);
     return res.status(500).json({ error: "An unknown error occurred" });
   }
 }
@@ -344,7 +344,7 @@ async function getSessions(req, res) {
 
     return res.status(200).json(sessions);
   } catch (err) {
-    console.log("GET /sessions: Error encountered", err.message);
+    console.log("GET /sessions: Error:", err.message);
     return res.status(500).json({ error: "An unknown error occurred" });
   }
 }
