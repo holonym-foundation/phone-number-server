@@ -7,7 +7,7 @@ const {
   updatePhoneSession,
   getPhoneSessionById,
   getPhoneSessionsBySigDigest,
-  getPhoneSessionsBySigDigest,
+  getPhoneSessionByTxHash,
 } = require('./dynamodb.js');
 const {
   sessionStatusEnum,
@@ -92,7 +92,7 @@ async function validateTxForSessionPayment(chainId, txHash) {
     };
   }
 
-  const sessions = await getPhoneSessionsBySigDigest(txHash)
+  const sessions = await getPhoneSessionByTxHash(txHash)
   const session = sessions?.Items?.[0]
 
   if (session) {
