@@ -20,6 +20,7 @@ const client = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWI
 
 const app = express();
 app.use(cors({origin: ["https://holonym.id", "https://www.holonym.id","https://app.holonym.id","http://localhost:3000","http://localhost:3001","http://localhost:3002"]}));
+app.use(express.json({ limit: "5mb" }));
 const port = 3030;
 const MAX_FRAUD_SCORE = 75; // ipqualityscore.com defines fraud score. This constant will be used to only allow phone numbers with a <= fraud score.
 
