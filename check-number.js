@@ -134,6 +134,17 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
         const result = await verify(req.params.number, req.params.code)
         if (result) {
             const creds = await registerAndGetCredentialsIfSafeV4(req.params.number, req.params.country)
+            
+            await updatePhoneSession(
+                req.params.sessionId,
+                null,
+                sessionStatusEnum.ISSUED,
+                null,
+                null,
+                null,
+                null,
+            )
+
             res.send(creds);
         } else {
             await updatePhoneSession(
