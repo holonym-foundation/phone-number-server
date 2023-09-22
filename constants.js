@@ -20,7 +20,8 @@ if (process.env.NODE_ENV === "development") {
 }
 
 // NOTE: This const must stay in sync with the frontend.
-const phoneServerPaymentAddress = "0x50c49b7305ac450cc2d2ba5fa1b1cc3168cd34d5";
+// We use the same account that we use for id-server.
+const idServerPaymentAddress = "0xdca2e9ae8423d7b0f94d7f9fc09e698a45f3c851";
 
 const ethereumProvider = new ethers.providers.AlchemyProvider(
   "homestead",
@@ -50,7 +51,7 @@ module.exports = {
   sessionStatusEnum,
   maxAttemptsPerSession,
   supportedChainIds,
-  phoneServerPaymentAddress,
+  idServerPaymentAddress,
   ethereumProvider,
   optimismProvider,
   optimismGoerliProvider,

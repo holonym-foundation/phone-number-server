@@ -12,7 +12,7 @@ const {
 const {
   sessionStatusEnum,
   supportedChainIds,
-  phoneServerPaymentAddress,
+  idServerPaymentAddress,
   ethereumProvider,
   optimismProvider,
   optimismGoerliProvider,
@@ -49,10 +49,10 @@ async function validateTxForSessionPayment(chainId, txHash) {
     };
   }
 
-  if (phoneServerPaymentAddress !== tx.to.toLowerCase()) {
+  if (idServerPaymentAddress !== tx.to.toLowerCase()) {
     return {
       status: 400,
-      error: `Invalid transaction recipient. Recipient must be ${phoneServerPaymentAddress}`,
+      error: `Invalid transaction recipient. Recipient must be ${idServerPaymentAddress}`,
     };
   }
 
