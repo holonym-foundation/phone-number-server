@@ -56,7 +56,7 @@ app.post("/send/v4", async (req, res) => {
             return res.status(400).send("Session is not in progress")
         }
 
-        if (session.Item.attempts.N >= maxAttemptsPerSession) {
+        if (session.Item.numAttempts.N >= maxAttemptsPerSession) {
             return res.status(400).send("Session has reached max attempts")
         }
 
@@ -64,7 +64,7 @@ app.post("/send/v4", async (req, res) => {
         const countryCode = getCountryFromPhoneNumber(number);
         await begin(number, countryCode)
 
-        const attempts = session.Item.attempts.N + 1
+        const attempts = session.Item.numAttempts.N + 1
         await updatePhoneSession(sessionId, null, null, null, attempts, null)
 
         res.sendStatus(200)    
