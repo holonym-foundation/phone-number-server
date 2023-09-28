@@ -133,7 +133,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             return res.status(400).send("Could not verify number with given code")
         }
 
-        const response = await axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
+        const response = await axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${req.params.number}?country[]=${req.params.country}`)
         if (!("fraud_score" in response?.data)) {
             console.error(`Invalid response: ${JSON.stringify(response)}`)
             return res.status(500).send(`Received invalid response from ipqualityscore`)
