@@ -61,13 +61,13 @@ const sendOTP = async (phoneNumber, otp) => {
     const text = `${otp} is your verification code`;
     const sender = 'Holonym';
 
-    const viber = Messente.Viber.constructFromObject({text, sender});
+    // const viber = Messente.Viber.constructFromObject({text, sender});
     // const whatsappText = Messente.WhatsAppText.constructFromObject({text});
     // const whatsapp = Messente.WhatsApp.constructFromObject({text:whatsappText});
     const sms = Messente.SMS.constructFromObject({text, sender});
 
     const omnimessage = Messente.Omnimessage.constructFromObject({
-        messages: [sms, viber],
+        messages: [sms/*,viber*/],
         to: phoneNumber
     });
 
