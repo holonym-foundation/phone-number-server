@@ -64,12 +64,21 @@ app.post("/send/v4", async (req, res) => {
         const countryCode = getCountryFromPhoneNumber(number);
         await begin(number, countryCode)
 
-        const attempts = session.Item.numAttempts.N + 1
-        await updatePhoneSession(sessionId, null, null, null, attempts, null)
+        const attempts = Number(session.Item.numAttempts.N) + 1
+        await updatePhoneSession(sessionId, null, null, null, null, attempts, null)
 
         res.sendStatus(200)
     } catch (err) {
-        console.error("Error sending code", err)
+        if (err.response) {
+            console.error("Error sending code (1)", err.response.data);
+            console.error("Error sending code (2)", err.response.status);
+            console.error("Error sending code (3)", err.response.headers);
+        } else if (err.request) {
+            console.error("Error sending code", err.request);
+        } else {
+            console.error("Error sending code", err);
+        }
+
         res.status(500).send("An unknown error occurred while sending OTP")
     }
 })
