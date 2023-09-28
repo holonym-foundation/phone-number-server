@@ -58,7 +58,7 @@ async function validateTxForSessionPayment(chainId, txHash) {
 
   // NOTE: This const must stay in sync with the frontend.
   // We allow a 2% margin of error.
-  const expectedAmountInUSD = 3.5 * 0.98;
+  const expectedAmountInUSD = 5 * 0.98;
 
   let expectedAmountInToken;
   if ([1, 10].includes(chainId)) {
