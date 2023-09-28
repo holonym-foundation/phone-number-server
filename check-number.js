@@ -83,12 +83,8 @@ app.post("/send/v4", async (req, res) => {
     }
 })
 
-async function registerIfSafeV4(phoneNumber, country) {
-    const response = await axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
-    if (!("fraud_score" in response?.data)) {
-        throw new Error(`Invalid response: ${JSON.stringify(response)} `)
-    }
-    const result = await new Promise((resolve, reject) => {
+function getIsRegistered(phoneNumber) {
+    return new Promise((resolve, reject) => {
         numberExists(phoneNumber, (err, result) => {
             console.log("is registered", result);
             if (err) {
@@ -97,31 +93,12 @@ async function registerIfSafeV4(phoneNumber, country) {
             }
 
             if (result && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
-                reject("Number has been registered already!");
+                resolve(true)
                 return
             }
-            // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
-            if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
-                addNumber(phoneNumber);
-            }
-            resolve(response.data.fraud_score <= MAX_FRAUD_SCORE);
+            resolve(false)
         })
     })
-    return result
-}
-
-async function registerAndGetCredentialsIfSafeV4(phoneNumber, country) {
-    console.log("registerAndGetCredentialsIfSafeV4 was called")
-    const isSafe = await registerIfSafeV4(phoneNumber, country);
-    if (!isSafe) {
-        console.log(`phone number ${phoneNumber} could not be determined to belong to a unique human`)
-        throw new Error("phone number could not be determined to belong to a unique human")
-    } else {
-        const creds = await new Promise((resolve, reject) => {
-            credsFromNumber(phoneNumber).then(resolve).catch(reject)
-        })
-        return creds
-    }
 }
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
@@ -141,21 +118,8 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
         }
 
         const result = await verify(req.params.number, req.params.code)
-        if (result) {
-            const creds = await registerAndGetCredentialsIfSafeV4(req.params.number, req.params.country)
-            
-            await updatePhoneSession(
-                req.params.sessionId,
-                null,
-                sessionStatusEnum.ISSUED,
-                null,
-                null,
-                null,
-                null,
-            )
 
-            res.send(creds);
-        } else {
+        if (!result) {
             await updatePhoneSession(
                 req.params.sessionId,
                 null,
@@ -166,8 +130,48 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
                 null,
             )
 
-            res.status(400).send("Could not verify number with given code")
+            return res.status(400).send("Could not verify number with given code")
         }
+
+        const response = await axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
+        if (!("fraud_score" in response?.data)) {
+            console.error(`Invalid response: ${JSON.stringify(response)}`)
+            return res.status(500).send(`Received invalid response from ipqualityscore`)
+        }
+
+        const isRegistered = await getIsRegistered(req.params.number)
+
+        if (isRegistered) {
+            console.log(`Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`)
+            return res.status(400).send(`Number has been registered already!`)
+        }
+
+        const isSafe = response.data.fraud_score <= MAX_FRAUD_SCORE
+
+        if (!isSafe) {
+            console.log(`Phone number ${req.params.number} could not be determined to belong to a unique human`)
+            return res.status(400).send(`Phone number could not be determined to belong to a unique human. sessionId: ${req.params.sessionId}`)
+        }
+
+        // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
+        if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
+            addNumber(req.params.number);
+        }
+        const creds = await new Promise((resolve, reject) => {
+            credsFromNumber(req.params.number).then(resolve).catch(reject)
+        })
+
+        await updatePhoneSession(
+            req.params.sessionId,
+            null,
+            sessionStatusEnum.ISSUED,
+            null,
+            null,
+            null,
+            null,
+        )
+
+        return res.send(creds);
     } catch (err) {
         console.log('getCredentials v4: error', err)
 
@@ -181,7 +185,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             null
         )
 
-        res.status(400).send(`An unknown error occurred. Could not verify number with given code. sessionId: ${req.params.sessionId}`)
+        res.status(500).send(`An unknown error occurred. Could not verify number with given code. sessionId: ${req.params.sessionId}`)
     }
 })
 
