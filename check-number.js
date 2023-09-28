@@ -67,7 +67,7 @@ app.post("/send/v4", async (req, res) => {
         const attempts = session.Item.numAttempts.N + 1
         await updatePhoneSession(sessionId, null, null, null, attempts, null)
 
-        res.sendStatus(200)    
+        res.sendStatus(200)
     } catch (err) {
         console.error("Error sending code", err)
         res.status(500).send("An unknown error occurred while sending OTP")

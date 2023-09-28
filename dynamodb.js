@@ -39,7 +39,11 @@ const putPhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttem
     return ddb.putItem(params).promise()
 }
 
-const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash) => {
+const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash) => {    
+        console.log(
+            'updating session. args:',
+            [id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash]
+        )
         const expressions = [
             (sigDigest ? 'sigDigest = :sigDigest' : ''),
             (sessionStatus ? 'sessionStatus = :sessionStatus' : ''),
@@ -54,7 +58,7 @@ const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAt
                 ...(sessionStatus ? { ':sessionStatus': { S: sessionStatus } } : {}),
                 ...(chainId ? { ':chainId': { N: chainId } } : {}),
                 ...(txHash ? { ':txHash': { S: txHash } } : {}),
-                ...(numAttempts ? { ':numAttempts': { N: numAttempts } } : {}),
+                ...(numAttempts ? { ':numAttempts': { N: `${numAttempts}` } } : {}),
                 ...(refundTxHash ? { ':refundTxHash': { S: refundTxHash } } : {}),
         };
         const params = {
@@ -63,6 +67,7 @@ const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAt
                 UpdateExpression: updateExpression,
                 ExpressionAttributeValues: expressionAttributeValues
         }
+        console.log('updatePhoneSession: update params:', JSON.stringify(params, null, 2))
         return ddb.updateItem(params).promise()
 }
 
