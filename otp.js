@@ -74,7 +74,7 @@ const sendOTP = async (phoneNumber, otp) => {
     api.sendOmnimessage(omnimessage, (error, data, response) => {
         console.error('error?', error);
         console.log('data', data);
-        console.log('response', response)
+        // console.log('response', response)
     })
 }
 
