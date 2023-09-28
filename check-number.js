@@ -172,7 +172,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             null
         )
 
-        res.status(400).send("Could not verify number with given code")
+        res.status(400).send(`An unknown error occurred. Could not verify number with given code. sessionId: ${req.params.sessionId}`)
     }
 })
 
