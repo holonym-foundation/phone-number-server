@@ -2,6 +2,7 @@ require('dotenv').config();
 const { createClient } = require('redis');
 const crypto = require('crypto');
 const Messente = require('messente_api');
+const { ERROR_MESSAGES } = require('./constants.js');
 
 const MAX_OTP_ATTEMPTS = 5;
 const MAX_OTP_ATTEMPTS_COOLDOWN = 60 * 30; // 30 minutes
@@ -31,7 +32,7 @@ const cacheCountryRequest = async (countryCode) => {
     await redis.expire('country_requests_minutes', 60)
     await redis.expire('country_requests_hours', 3600) 
     if(countMinut > MAX_COUNTRY_ATTEMP_PER_MINUTE || countHour > MAX_COUNTRY_ATTEMP_PER_HOUR) {
-        throw new Error('Too many recent attempts from country ', country) 
+        throw new Error(`${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY} ${country}`) 
     }
 }
 
@@ -44,12 +45,12 @@ const checkOTP = async (phoneNumber, otp) => {
     // Rate limit:
     const recentAttempts = await redis.incr(`RecentAttempts:${phoneNumber}`)
     await redis.expire(`RecentAttempts:${phoneNumber}`, MAX_OTP_ATTEMPTS_COOLDOWN)
-    if (recentAttempts > MAX_OTP_ATTEMPTS) throw new Error('Too many recent attempts')
+    if (recentAttempts > MAX_OTP_ATTEMPTS) throw new Error(ERROR_MESSAGES.TOO_MANY_ATTEMPTS)
 
     const cachedOTP = await redis.get(`OTP:${phoneNumber}`)
 
-    if (!cachedOTP) throw new Error('OTP not found')
-    if (cachedOTP !== otp) throw new Error('OTP does not match')
+    if (!cachedOTP) throw new Error(ERROR_MESSAGES.OTP_NOT_FOUND)
+    if (cachedOTP !== otp) throw new Error(ERROR_MESSAGES.OTP_DOES_NOT_MATCH)
 
     // If we got here it was successful. Clear and return true
     await redis.del(`OTP:${phoneNumber}`)
