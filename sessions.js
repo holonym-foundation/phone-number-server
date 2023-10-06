@@ -1,5 +1,6 @@
 const { randomBytes } = require('crypto');
 const express = require("express");
+const axios = require('axios');
 const { createClient } = require('redis');
 const { ethers } = require('ethers');
 const {
@@ -18,6 +19,12 @@ const {
   optimismGoerliProvider,
   fantomProvider,
 } = require('./constants.js');
+const {
+  getAccessToken: getPayPalAccessToken,
+  getOrder: getPayPalOrder,
+  getRefundDetails: getPayPalRefundDetails,
+  capturePayPalOrder
+} = require('./paypal.js');
 const { usdToETH, usdToFTM } = require('./utils.js');
 
 const redis = createClient();
@@ -105,7 +112,7 @@ async function validateTxForSessionPayment(chainId, txHash) {
   return {};
 }
 
-async function refundMintFee(session, to) {
+async function refundMintFeeOnChain(session, to) {
   let provider;
   if (session.Item.chainId.N === 1) {
     provider = ethereumProvider;
@@ -159,7 +166,8 @@ async function refundMintFee(session, to) {
     null,
     null,
     null,
-    receipt.transactionHash
+    receipt.transactionHash,
+    null
   )
 
   return {
@@ -167,6 +175,123 @@ async function refundMintFee(session, to) {
     data: {
       txReceipt: receipt,
     },
+  };
+}
+
+async function refundMintFeePayPal(session) {
+  const accessToken = await getPayPalAccessToken();
+
+  const payPalData = JSON.parse(session?.Item?.payPal?.S ?? {})
+  const orders = payPalData.orders ?? [];
+
+  if (orders.length === 0) {
+    return {
+      status: 404,
+      data: {
+        error: "No PayPal orders found for session",
+      },
+    };
+  }
+
+  let successfulOrder;
+  for (const { id: orderId } of orders) {
+    const order = await getPayPalOrder(orderId, accessToken);
+    if (order.status === "COMPLETED") {
+      successfulOrder = order;
+      break;
+    }
+  }
+
+  if (!successfulOrder) {
+    return {
+      status: 404,
+      data: {
+        error: "No successful PayPal orders found for session",
+      },
+    };
+  }
+
+  // Get the first successful payment capture
+  let capture;
+  for (const pu of successfulOrder.purchase_units) {
+    for (const payment of pu.payments.captures) {
+      if (payment.status === "COMPLETED") {
+        capture = payment;
+        break;
+      }
+    }
+  }
+
+  if (!capture) {
+    return {
+      status: 404,
+      data: {
+        error: "No successful PayPal payment captures found for session",
+      },
+    };
+  }
+
+  const paymentId = capture.id;
+
+  // PayPal returns a 403 when trying to get refund details. Not sure if this
+  // is because no refund exists had been performed yet or because of some other.
+  // issue I tried creating new credentials and using the sandbox API but still
+  // got a 403.
+  // const refundDetails = await getPayPalRefundDetails(paymentId, accessToken);
+
+  // if (refundDetails.status === "COMPLETED") {
+  //   return {
+  //     status: 400,
+  //     data: {
+  //       error: "Payment has already been refunded",
+  //     },
+  //   };
+  // }
+
+  const url =
+    process.env.NODE_ENV === "development"
+      ? `https://api-m.sandbox.paypal.com/v2/payments/captures/${paymentId}/refund`
+      : // TODO: Add production URL
+        "";
+  const config = {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+  };
+  const data = {
+    amount: {
+      value: "2.53",
+      currency_code: "USD",
+    },
+    // invoice_id: "INVOICE-123",
+    note_to_payer: "Failed verification",
+  };
+  const resp = await axios.post(url, data, config);
+
+  if (resp.data?.status !== "COMPLETED") {
+    return {
+      status: 500,
+      data: {
+        error: "Error refunding payment",
+      },
+    };
+  }
+
+  await updatePhoneSession(
+    session.Item.id.S,
+    null,
+    sessionStatusEnum.REFUNDED,
+    null,
+    null,
+    null,
+    null,
+    null
+  )
+
+  return {
+    status: 200,
+    data: {},
   };
 }
 
@@ -191,6 +316,7 @@ async function postSession(req, res) {
       null,
       0,
       null,
+      null
     )
 
     return res.status(201).json({ 
@@ -201,6 +327,108 @@ async function postSession(req, res) {
     });
   } catch (err) {
     console.log("postSession: Error:", err.message);
+    return res.status(500).json({ error: "An unknown error occurred" });
+  }
+}
+
+/**
+ * ENDPOINT.
+ */
+async function createPayPalOrder(req, res) {
+  try {
+    const id = req.params.id;
+
+    const session = await getPhoneSessionById(id)
+
+    if (!session?.Item) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    const accessToken = await getPayPalAccessToken();
+
+    const url =
+      process.env.NODE_ENV === "development"
+        ? "https://api-m.sandbox.paypal.com/v2/checkout/orders"
+        : "";
+    const body = {
+      intent: "CAPTURE",
+      purchase_units: [
+        {
+          // reference_id: `idv-session-${_id}`,
+          amount: {
+            currency_code: "USD",
+            value: "5.00",
+          },
+        },
+      ],
+      // payment_source: {
+      //   paypal: {
+      //     experience_context: {
+      //       payment_method_preference: "IMMEDIATE_PAYMENT_REQUIRED",
+      //       brand_name: "EXAMPLE INC",
+      //       locale: "en-US",
+      //       landing_page: "LOGIN",
+      //       shipping_preference: "SET_PROVIDED_ADDRESS",
+      //       user_action: "PAY_NOW",
+      //       return_url: "https://example.com/returnUrl",
+      //       cancel_url: "https://example.com/cancelUrl",
+      //     },
+      //   },
+      // },
+    };
+    const config = {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    };
+
+    const resp = await axios.post(url, body, config);
+
+    const order = resp.data;
+
+    const sessionPayPalData = JSON.parse(session?.Item?.payPal?.S ?? {})
+
+    if ((sessionPayPalData?.orders ?? []).length > 0) {
+      sessionPayPalData.orders.push({ 
+        id: order.id, 
+        createdAt: new Date().getTime().toString() 
+      });
+    } else {
+      sessionPayPalData = {
+        orders: [{ 
+          id: order.id, 
+          createdAt: new Date().getTime().toString() 
+        }],
+      };
+    }
+
+    await updatePhoneSession(
+      id,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      JSON.stringify(sessionPayPalData),
+    )
+
+    return res.status(201).json(order);
+  } catch (err) {
+    if (err.response) {
+      console.error(
+        { error: err.response.data },
+        "Error creating PayPal order"
+      );
+    } else if (err.request) {
+      console.error(
+        { error: err.request.data },
+        "Error creating PayPal order"
+      );
+    } else {
+      console.error({ error: err }, "Error creating PayPal order");
+    }
     return res.status(500).json({ error: "An unknown error occurred" });
   }
 }
@@ -250,7 +478,8 @@ async function payment(req, res) {
       chainId.toString(),
       txHash,
       null,
-      null
+      null,
+      null,
     )
     
     return res.status(200).json({ success: true });
@@ -262,6 +491,115 @@ async function payment(req, res) {
     } else {
       console.error("session payment endpoint: error:", err);
     }
+    return res.status(500).json({ error: "An unknown error occurred" });
+  }
+}
+
+/**
+ * ENDPOINT.
+ */
+async function paymentV2(req, res) {
+  try {
+    if (req.body.chainId && req.body.txHash) {
+      return payment(req, res);
+    }
+
+    const id = req.params.id;
+    const orderId = req.body.orderId;
+
+    if (!orderId) {
+      return res.status(400).json({ error: "orderId is required" });
+    }
+
+    const session = await getPhoneSessionById(id)
+
+    if (!session?.Item) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    if (session.Item.sessionStatus?.S !== sessionStatusEnum.NEEDS_PAYMENT) {
+      return res.status(400).json({
+        error: `Session status is '${session.Item.sessionStatus?.S}'. Expected '${sessionStatusEnum.NEEDS_PAYMENT}'`,
+      });
+    }
+
+    const payPalData = JSON.parse(session?.Item?.payPal?.S ?? {})
+
+    const filteredOrders = (payPalData?.orders ?? []).filter(
+      (order) => order.id === orderId
+    );
+    if (filteredOrders.length === 0) {
+      return res.status(400).json({
+        error: `Order ${orderId} is not associated with session ${id}`,
+      });
+    }
+
+    // TODO: Scan all phone sessions for a session with this PayPal order ID.
+    // And ensure that this order ID is not associated with any other session
+    // const sessions = ...
+    // if (sessions.length > 0) {
+    //   return res.status(400).json({
+    //     error: `Order ${orderId} is already associated with session ${sessions[0]._id}`,
+    //   });
+    // }
+
+    const accessToken = await getPayPalAccessToken();
+
+    const order = await capturePayPalOrder(orderId, accessToken);
+
+    if (order.status !== "COMPLETED") {
+      return res.status(400).json({
+        error: `Order ${orderId} has status ${order.status}. Must be COMPLETED`,
+      });
+    }
+
+    const expectedAmountInUSD = 5;
+
+    let successfulOrder;
+    for (const pu of order.purchase_units) {
+      for (const payment of pu.payments.captures) {
+        if (payment.status === "COMPLETED") {
+          if (Number(payment.amount.value) >= expectedAmountInUSD) {
+            successfulOrder = order;
+          }
+          break;
+        }
+      }
+    }
+
+    if (!successfulOrder) {
+      return res.status(400).json({
+        error: `Order ${orderId} does not have a successful payment capture with amount >= ${expectedAmountInUSD}`,
+      });
+    }
+
+    await updatePhoneSession(
+      id,
+      null,
+      sessionStatusEnum.IN_PROGRESS,
+      null,
+      null,
+      null,
+      null,
+      null,
+    )
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    if (err.response) {
+      console.error(
+        { error: err.response.data },
+        "Error in paymentV2"
+      );
+    } else if (err.request) {
+      console.error(
+        { error: err.request.data },
+        "Error in paymentV2"
+      );
+    } else {
+      console.error({ error: err }, "Error in paymentV2");
+    }
+
     return res.status(500).json({ error: "An unknown error occurred" });
   }
 }
@@ -307,7 +645,7 @@ async function refund(req, res) {
     await redis.set(mutexKey, 'locked', 'EX', 60)
 
     // Perform refund logic
-    const response = await refundMintFee(session, to);
+    const response = await refundMintFeeOnChain(session, to);
 
     // Delete mutex
     await redis.del(mutexKey)
@@ -320,6 +658,76 @@ async function refund(req, res) {
       await redis.del(mutexKey)
     } catch (err) {
       console.log("Error encountered while deleting mutex", err);
+    }
+
+    console.log("Error encountered", err);
+    return res.status(500).json({ error: "An unknown error occurred" });
+  }
+}
+
+/**
+ * ENDPOINT.
+ */
+async function refundV2(req, res) {
+  if (req.body.to) {
+    return refund(req, res);
+  }
+
+  const id = req.params.id;
+
+  const mutexKey = `sessionRefundMutexLock:${id}`
+
+  try {
+    const session = await getPhoneSessionById(id)
+
+    if (!session?.Item) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    if (session.Item.sessionStatus?.S !== sessionStatusEnum.VERIFICATION_FAILED) {
+      return res
+        .status(400)
+        .json({ error: "Only failed verifications can be refunded." });
+    }
+
+    // Create mutex. We use mutex here so that only one refund request
+    // per session can be processed at a time. Otherwise, if the user
+    // spams this refund endpoint, we could send multiple transactions
+    // before the first one is confirmed.
+    const mutex = await redis.get(mutexKey)
+    if (mutex) {
+      return res.status(400).json({ error: "Refund already in progress" });
+    }
+    await redis.set(mutexKey, 'locked', 'EX', 60)
+
+    // Perform refund logic
+    const response = await refundMintFeePayPal(session, to);
+
+    // Delete mutex
+    await redis.del(mutexKey)
+    
+    // Return response
+    return res.status(response.status).json(response.data);
+  } catch (err) {
+    // Delete mutex. We have this here in case an unknown error occurs above.
+    try {
+      await redis.del(mutexKey)
+    } catch (err) {
+      console.log("Error encountered while deleting mutex", err);
+    }
+
+    if (err.response) {
+      console.error(
+        { error: JSON.stringify(err.response.data, null, 2) },
+        "Error during refund"
+      );
+    } else if (err.request) {
+      console.error(
+        { error: JSON.stringify(err.request.data, null, 2) },
+        "Error during refund"
+      );
+    } else {
+      console.error({ error: err }, "Error during refund");
     }
 
     console.log("Error encountered", err);
@@ -360,8 +768,11 @@ async function getSessions(req, res) {
 const sessionsRouter = express.Router();
 
 sessionsRouter.post("/", postSession);
+sessionsRouter.post("/:id/paypal-order", createPayPalOrder);
 sessionsRouter.post("/:id/payment", payment);
+sessionsRouter.post("/:id/payment/v2", paymentV2);
 sessionsRouter.post("/:id/refund", refund);
+sessionsRouter.post("/:id/refund/v2", refundV2);
 sessionsRouter.get("/", getSessions);
 
 module.exports.sessionsRouter = sessionsRouter;

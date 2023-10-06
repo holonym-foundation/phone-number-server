@@ -65,7 +65,7 @@ app.post("/send/v4", async (req, res) => {
         await begin(number, countryCode)
 
         const attempts = Number(session.Item.numAttempts.N) + 1
-        await updatePhoneSession(sessionId, null, null, null, null, attempts, null)
+        await updatePhoneSession(sessionId, null, null, null, null, attempts, null, null)
 
         res.sendStatus(200)
     } catch (err) {
@@ -128,6 +128,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
                 null,
                 null,
                 null,
+                null
             )
 
             return res.status(400).send("Could not verify number with given code")
@@ -169,6 +170,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             null,
             null,
             null,
+            null
         )
 
         return res.send(creds);
@@ -179,6 +181,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             req.params.sessionId,
             null,
             sessionStatusEnum.VERIFICATION_FAILED,
+            null,
             null,
             null,
             null,

@@ -2,6 +2,29 @@ var AWS = require('aws-sdk');
 AWS.config.update({region:'us-east-2'});
 var ddb = new AWS.DynamoDB({apiVersion: '2012-08-10'});
 
+/**
+ * @typedef PayPalOrder
+ * @property {string} id
+ * @property {string} createdAt
+ */
+
+/**
+ * @typedef PhoneSessionPayPalData
+ * @property {Array<PayPalOrder>} orders
+ */
+
+/**
+ * @typedef PhoneSession
+ * @property {string} id
+ * @property {string} sigDigest 
+ * @property {string} sessionStatus 
+ * @property {string | undefined} chainId 
+ * @property {string | undefined} txHash 
+ * @property {number} numAttempts 
+ * @property {string | undefined} refundTxHash 
+ * @property {string | undefined} payPal JSON stringified PhoneSessionPayPalData
+ */
+
 // Helper function to get a phone number from the db
 const getNumberParams = (value) => ({
 	TableName: 'phone-numbers',
@@ -22,8 +45,16 @@ const addNumber = (number) => ddb.putItem(putNumberParams(number), (err)=>{if(er
 
 /**
  * `status` is a reserved keyword in DynamoDB, so we name it `sessionStatus`.
+ * @param {string | undefined} id 
+ * @param {string | undefined} sigDigest 
+ * @param {string | undefined} sessionStatus 
+ * @param {string | undefined} chainId 
+ * @param {string | undefined} txHash 
+ * @param {number | undefined} numAttempts 
+ * @param {string | undefined} refundTxHash 
+ * @param {string | undefined} payPal 
  */
-const putPhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash) => {
+const putPhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash, payPal) => {
     const params = {
         TableName: 'phone-sessions',
         Item: {
@@ -33,16 +64,27 @@ const putPhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttem
             ...(chainId ? { 'chainId': { N: `${chainId}` } } : {}),
             ...(txHash ? { 'txHash': { S: `${txHash}` } } : {}),
             'numAttempts': { N: `${numAttempts}` },
-            ...(refundTxHash ? { 'refundTxHash': { S: `${refundTxHash}` } } : {})
+            ...(refundTxHash ? { 'refundTxHash': { S: `${refundTxHash}` } } : {}),
+            ...(payPal ? { 'payPal': { S: `${payPal}` } } : {})
         }
     }
     return ddb.putItem(params).promise()
 }
 
-const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash) => {    
+/**
+ * @param {string | undefined} id 
+ * @param {string | undefined} sigDigest 
+ * @param {string | undefined} sessionStatus 
+ * @param {string | undefined} chainId 
+ * @param {string | undefined} txHash 
+ * @param {number | undefined} numAttempts 
+ * @param {string | undefined} refundTxHash 
+ * @param {string | undefined} payPal 
+ */
+const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash, payPal) => {    
         console.log(
             'updating session. args:',
-            [id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash]
+            [id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash, payPal]
         )
         const expressions = [
             (sigDigest ? 'sigDigest = :sigDigest' : ''),
@@ -50,7 +92,8 @@ const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAt
             (chainId ? 'chainId = :chainId' : ''),
             (txHash ? 'txHash = :txHash' : ''),
             (numAttempts ? 'numAttempts = :numAttempts' : ''),
-            (refundTxHash ? 'refundTxHash = :refundTxHash' : '')
+            (refundTxHash ? 'refundTxHash = :refundTxHash' : ''),
+            (payPal ? 'payPal = :payPal' : '')
         ].filter(x => x !== '').join(', ');
         const updateExpression = 'SET ' + expressions;
         const expressionAttributeValues = {
@@ -60,6 +103,7 @@ const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAt
                 ...(txHash ? { ':txHash': { S: txHash } } : {}),
                 ...(numAttempts ? { ':numAttempts': { N: `${numAttempts}` } } : {}),
                 ...(refundTxHash ? { ':refundTxHash': { S: refundTxHash } } : {}),
+                ...(payPal ? { ':payPal': { S: payPal } } : {}),
         };
         const params = {
                 TableName: 'phone-sessions',
