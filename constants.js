@@ -47,6 +47,15 @@ const cmcSlugToID = {
   fantom: fantomCMCID,
 };
 
+const ERROR_MESSAGES = {
+  // TOO_MANY_ATTEMPTS is too many attempts for a given user
+  TOO_MANY_ATTEMPTS: 'Too many recent attempts',
+  // TOO_MANY_ATTEMPTS_COUNTRY is too many attempts for a given country
+  TOO_MANY_ATTEMPTS_COUNTRY: 'Too many recent attempts from country',
+  OTP_NOT_FOUND: 'OTP not found',
+  OTP_DOES_NOT_MATCH: 'OTP does not match',
+}
+
 module.exports = {
   sessionStatusEnum,
   maxAttemptsPerSession,
@@ -59,4 +68,5 @@ module.exports = {
   ethereumCMCID,
   fantomCMCID,
   cmcSlugToID,
+  ERROR_MESSAGES,
 }

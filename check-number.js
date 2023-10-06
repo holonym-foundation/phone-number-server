@@ -12,7 +12,11 @@ const {
 } = (require("./dynamodb.js"));
 const { begin, verify } = require("./otp.js");
 const { sessionsRouter } = require("./sessions.js");
-const { sessionStatusEnum, maxAttemptsPerSession } = require('./constants.js');
+const {
+    sessionStatusEnum,
+    maxAttemptsPerSession,
+    ERROR_MESSAGES,
+} = require('./constants.js');
 const PhoneNumber = require('libphonenumber-js');
 
 require("dotenv").config();
@@ -187,6 +191,19 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             null,
             null
         )
+
+        if (err.message === ERROR_MESSAGES.TOO_MANY_ATTEMPTS) {
+            return res.status(400).send(ERROR_MESSAGES.TOO_MANY_ATTEMPTS)
+        }
+        if ((err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
+            return res.status(400).send(err.message)
+        }
+        if (err.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
+            return res.status(400).send(ERROR_MESSAGES.OTP_NOT_FOUND)
+        }
+        if (err.message === ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
+            return res.status(400).send(ERROR_MESSAGES.OTP_DOES_NOT_MATCH)
+        }
 
         res.status(500).send(`An unknown error occurred. Could not verify number with given code. sessionId: ${req.params.sessionId}`)
     }
