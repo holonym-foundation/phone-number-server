@@ -57,7 +57,7 @@ app.post("/send/v4", async (req, res) => {
         }
 
         if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
-            return res.status(400).send("Session is not in progress")
+            return res.status(400).send(`Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`)
         }
 
         if (session.Item.numAttempts.N >= maxAttemptsPerSession) {
@@ -118,7 +118,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
         }
 
         if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
-            return res.status(400).send("Session is not in progress")
+            return res.status(400).send(`Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`)
         }
 
         const result = await verify(req.params.number, req.params.code)
