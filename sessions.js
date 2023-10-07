@@ -396,12 +396,10 @@ async function createPayPalOrder(req, res) {
         createdAt: new Date().getTime().toString() 
       });
     } else {
-      sessionPayPalData = {
-        orders: [{ 
-          id: order.id, 
-          createdAt: new Date().getTime().toString() 
-        }],
-      };
+      sessionPayPalData.orders = [{ 
+        id: order.id, 
+        createdAt: new Date().getTime().toString() 
+      }]
     }
 
     await updatePhoneSession(
