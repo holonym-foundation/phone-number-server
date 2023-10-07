@@ -181,7 +181,7 @@ async function refundMintFeeOnChain(session, to) {
 async function refundMintFeePayPal(session) {
   const accessToken = await getPayPalAccessToken();
 
-  const payPalData = JSON.parse(session?.Item?.payPal?.S ?? {})
+  const payPalData = JSON.parse(session?.Item?.payPal?.S ?? '{}')
   const orders = payPalData.orders ?? [];
 
   if (orders.length === 0) {
@@ -387,7 +387,8 @@ async function createPayPalOrder(req, res) {
 
     const order = resp.data;
 
-    const sessionPayPalData = JSON.parse(session?.Item?.payPal?.S ?? {})
+    console.log('session?.Item?.payPal?.S', session?.Item?.payPal?.S)
+    const sessionPayPalData = JSON.parse(session?.Item?.payPal?.S ?? '{}')
 
     if ((sessionPayPalData?.orders ?? []).length > 0) {
       sessionPayPalData.orders.push({ 
@@ -523,7 +524,7 @@ async function paymentV2(req, res) {
       });
     }
 
-    const payPalData = JSON.parse(session?.Item?.payPal?.S ?? {})
+    const payPalData = JSON.parse(session?.Item?.payPal?.S ?? '{}')
 
     const filteredOrders = (payPalData?.orders ?? []).filter(
       (order) => order.id === orderId
