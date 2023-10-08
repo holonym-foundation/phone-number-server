@@ -115,13 +115,13 @@ async function validateTxForSessionPayment(chainId, txHash) {
 
 async function refundMintFeeOnChain(session, to) {
   let provider;
-  if (session.Item.chainId.N === 1) {
+  if (Number(session.Item.chainId.N) === 1) {
     provider = ethereumProvider;
-  } else if (session.Item.chainId.N === 10) {
+  } else if (Number(session.Item.chainId.N) === 10) {
     provider = optimismProvider;
-  } else if (session.Item.chainId.N === 250) {
+  } else if (Number(session.Item.chainId.N) === 250) {
     provider = fantomProvider;
-  } else if (process.env.NODE_ENV === "development" && session.Item.chainId.N === 420) {
+  } else if (process.env.NODE_ENV === "development" && Number(session.Item.chainId.N) === 420) {
     provider = optimismGoerliProvider;
   }
 
