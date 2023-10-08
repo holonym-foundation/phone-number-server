@@ -57,8 +57,8 @@ const ERROR_MESSAGES = {
 }
 const payPalApiUrlBase =
   process.env.NODE_ENV === "production"
-  ? "https://api-m.paypal.com/"
-  : "https://api-m.sandbox.paypal.com/";
+  ? "https://api-m.paypal.com"
+  : "https://api-m.sandbox.paypal.com";
 
 module.exports = {
   sessionStatusEnum,
