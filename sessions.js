@@ -18,6 +18,7 @@ const {
   optimismProvider,
   optimismGoerliProvider,
   fantomProvider,
+  payPalApiUrlBase,
 } = require('./constants.js');
 const {
   getAccessToken: getPayPalAccessToken,
@@ -248,11 +249,7 @@ async function refundMintFeePayPal(session) {
   //   };
   // }
 
-  const url =
-    process.env.NODE_ENV === "development"
-      ? `https://api-m.sandbox.paypal.com/v2/payments/captures/${paymentId}/refund`
-      : // TODO: Add production URL
-        "";
+  const url = `${payPalApiUrlBase}/v2/payments/captures/${paymentId}/refund`
   const config = {
     headers: {
       "Content-Type": "application/json",
@@ -346,10 +343,7 @@ async function createPayPalOrder(req, res) {
 
     const accessToken = await getPayPalAccessToken();
 
-    const url =
-      process.env.NODE_ENV === "development"
-        ? "https://api-m.sandbox.paypal.com/v2/checkout/orders"
-        : "";
+    const url = `${payPalApiUrlBase}/v2/checkout/orders`
     const body = {
       intent: "CAPTURE",
       purchase_units: [

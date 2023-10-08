@@ -1,10 +1,8 @@
 const axios = require("axios");
+const { payPalApiUrlBase } = require("./constants.js");
 
 async function getAccessToken() {
-  const url =
-    process.env.NODE_ENV === "development"
-      ? "https://api-m.sandbox.paypal.com/v1/oauth2/token"
-      : "https://api-m.paypal.com/v1/oauth2/token";
+  const url = `${payPalApiUrlBase}/v1/oauth2/token`
   const data = new URLSearchParams({
     grant_type: "client_credentials",
   });
@@ -19,11 +17,7 @@ async function getAccessToken() {
 }
 
 async function getOrder(id, accessToken) {
-  const url =
-    process.env.NODE_ENV === "development"
-      ? `https://api-m.sandbox.paypal.com/v2/checkout/orders/${id}`
-      : // TODO: Add production URL
-        "";
+  const url = `${payPalApiUrlBase}/v2/checkout/orders/${id}`
   const config = {
     headers: {
       "Content-Type": "application/json",
@@ -35,11 +29,7 @@ async function getOrder(id, accessToken) {
 }
 
 async function getRefundDetails(id, accessToken) {
-  const url =
-    process.env.NODE_ENV === "development"
-      ? `https://api.sandbox.paypal.com/v2/payments/refunds/${id}`
-      : // TODO: Add production URL
-        "";
+  const url = `${payPalApiUrlBase}/v2/payments/refunds/${id}`
   const config = {
     headers: {
       "Content-Type": "application/json",
@@ -49,11 +39,9 @@ async function getRefundDetails(id, accessToken) {
   const resp = await axios.get(url, config);
   return resp.data;
 }
+
 async function capturePayPalOrder(orderId, accessToken) {
-  const url =
-    process.env.NODE_ENV === "development"
-      ? `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}/capture`
-      : "";
+  const url = `${payPalApiUrlBase}/v2/checkout/orders/${orderId}/capture`
   const config = {
     headers: {
       "Content-Type": "application/json",

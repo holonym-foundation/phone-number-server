@@ -55,6 +55,10 @@ const ERROR_MESSAGES = {
   OTP_NOT_FOUND: 'OTP not found',
   OTP_DOES_NOT_MATCH: 'OTP does not match',
 }
+const payPalApiUrlBase =
+  process.env.NODE_ENV === "production"
+  ? "https://api-m.paypal.com/"
+  : "https://api-m.sandbox.paypal.com/";
 
 module.exports = {
   sessionStatusEnum,
@@ -69,4 +73,5 @@ module.exports = {
   fantomCMCID,
   cmcSlugToID,
   ERROR_MESSAGES,
+  payPalApiUrlBase,
 }
