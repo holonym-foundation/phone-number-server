@@ -181,16 +181,21 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
     } catch (err) {
         console.log('getCredentials v4: error', err)
 
-        await updatePhoneSession(
-            req.params.sessionId,
-            null,
-            sessionStatusEnum.VERIFICATION_FAILED,
-            null,
-            null,
-            null,
-            null,
-            null
-        )
+        // We do not set session status to VERIFICATION_FAILED if the error was simply
+        // due to rate limiting requests from the user's country. We only want to set
+        // the session status to VERIFICATION_FAILED if the error was due to the user.
+        if (!(err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
+            await updatePhoneSession(
+                req.params.sessionId,
+                null,
+                sessionStatusEnum.VERIFICATION_FAILED,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        }
 
         if (err.message === ERROR_MESSAGES.TOO_MANY_ATTEMPTS) {
             return res.status(400).send(ERROR_MESSAGES.TOO_MANY_ATTEMPTS)
