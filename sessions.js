@@ -18,6 +18,7 @@ const {
   optimismProvider,
   optimismGoerliProvider,
   fantomProvider,
+  avalancheProvider,
   payPalApiUrlBase,
 } = require('./constants.js');
 const {
@@ -26,7 +27,7 @@ const {
   getRefundDetails: getPayPalRefundDetails,
   capturePayPalOrder
 } = require('./paypal.js');
-const { usdToETH, usdToFTM } = require('./utils.js');
+const { usdToETH, usdToFTM, usdToAVAX } = require('./utils.js');
 
 const redis = createClient();
 redis.on('error', err => console.log('Redis Client Error', err));
@@ -46,6 +47,8 @@ async function validateTxForSessionPayment(chainId, txHash) {
     tx = await optimismProvider.getTransaction(txHash);
   } else if (chainId === 250) {
     tx = await fantomProvider.getTransaction(txHash);
+  } else if (chainId === 43114) {
+    tx = await avalancheProvider.getTransaction(txHash);
   } else if (process.env.NODE_ENV === "development" && chainId === 420) {
     tx = await optimismGoerliProvider.getTransaction(txHash);
   }
@@ -73,6 +76,8 @@ async function validateTxForSessionPayment(chainId, txHash) {
     expectedAmountInToken = await usdToETH(expectedAmountInUSD);
   } else if (chainId === 250) {
     expectedAmountInToken = await usdToFTM(expectedAmountInUSD);
+  } else if (chainId === 43114) {
+    expectedAmountInToken = await usdToAVAX(expectedAmountInUSD);
   }
   else if (process.env.NODE_ENV === "development" && chainId === 420) {
     expectedAmountInToken = await usdToETH(expectedAmountInUSD);
@@ -121,6 +126,8 @@ async function refundMintFeeOnChain(session, to) {
     provider = optimismProvider;
   } else if (Number(session.Item.chainId.N) === 250) {
     provider = fantomProvider;
+  } else if (Number(session.Item.chainId.N) === 43114) {
+    provider = avalancheProvider;
   } else if (process.env.NODE_ENV === "development" && Number(session.Item.chainId.N) === 420) {
     provider = optimismGoerliProvider;
   }

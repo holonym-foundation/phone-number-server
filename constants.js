@@ -14,6 +14,7 @@ const supportedChainIds = [
   1, // Ethereum
   10, // Optimism
   250, // Fantom
+  43114, // Avalanche
 ];
 if (process.env.NODE_ENV === "development") {
   supportedChainIds.push(420); // Optimism goerli
@@ -38,12 +39,17 @@ const optimismGoerliProvider = new ethers.providers.AlchemyProvider(
 const fantomProvider = new ethers.providers.JsonRpcProvider(
   "https://rpc.ftm.tools"
 );
+const avalancheProvider = new ethers.providers.JsonRpcProvider(
+  "https://api.avax.network/ext/bc/C/rpc"
+);
 
 const ethereumCMCID = 1027;
+const avalancheCMCID = 5805;
 const fantomCMCID = 3513;
 
 const cmcSlugToID = {
   ethereum: ethereumCMCID,
+  avalanche: avalancheCMCID,
   fantom: fantomCMCID,
 };
 
@@ -69,8 +75,10 @@ module.exports = {
   optimismProvider,
   optimismGoerliProvider,
   fantomProvider,
+  avalancheProvider,
   ethereumCMCID,
   fantomCMCID,
+  avalancheCMCID,
   cmcSlugToID,
   ERROR_MESSAGES,
   payPalApiUrlBase,

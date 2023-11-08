@@ -3,6 +3,7 @@ const axios = require('axios');
 const {
   ethereumCMCID,
   fantomCMCID,
+  avalancheCMCID,
 } = require('./constants.js');
 
 function getDateAsInt(date) {
@@ -42,8 +43,16 @@ async function usdToFTM(usdAmount) {
   return ftmAmount;
 }
 
+async function usdToAVAX(usdAmount) {
+  const resp = await getLatestCryptoPrice(avalancheCMCID);
+  const avalanchePrice = resp?.data?.data?.[avalancheCMCID]?.quote?.USD?.price;
+  const avaxAmount = usdAmount / avalanchePrice;
+  return avaxAmount;
+}
+
 module.exports = { 
   getDateAsInt : getDateAsInt,
   usdToETH,
   usdToFTM,
+  usdToAVAX,
 }
