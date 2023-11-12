@@ -158,10 +158,6 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             return res.status(400).send(`Phone number could not be determined to belong to a unique human. sessionId: ${req.params.sessionId}`)
         }
 
-        // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
-        if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
-            addNumber(req.params.number);
-        }
         const creds = await new Promise((resolve, reject) => {
             credsFromNumber(req.params.number).then(resolve).catch(reject)
         })
@@ -176,6 +172,11 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             null,
             null
         )
+        
+        // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
+        if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
+            addNumber(req.params.number);
+        }
 
         return res.send(creds);
     } catch (err) {
