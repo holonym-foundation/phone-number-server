@@ -105,10 +105,9 @@ async function validateTxForSessionPayment(chainId, txHash) {
     };
   }
 
-  const sessions = await getPhoneSessionByTxHash(txHash)
-  const session = sessions?.Items?.[0]
+  const sessionWithTxHash = await getPhoneSessionByTxHash(txHash)
 
-  if (session) {
+  if (sessionWithTxHash) {
     return {
       status: 400,
       error: "Transaction has already been used to pay for a session",
