@@ -148,6 +148,18 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
 
         if (isRegistered) {
             console.log(`Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`)
+            
+            await updatePhoneSession(
+                req.params.sessionId,
+                null,
+                sessionStatusEnum.VERIFICATION_FAILED,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+            
             return res.status(400).send(`Number has been registered already!`)
         }
 
