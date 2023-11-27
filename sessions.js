@@ -632,6 +632,12 @@ async function refund(req, res) {
         .status(400)
         .json({ error: "Only failed verifications can be refunded." });
     }
+    
+    if (session.Item.refundTxHash?.S) {
+      return res
+        .status(400)
+        .json({ error: "Session has already been refunded." });
+    }
 
     // Create mutex. We use mutex here so that only one refund request
     // per session can be processed at a time. Otherwise, if the user
@@ -687,6 +693,12 @@ async function refundV2(req, res) {
       return res
         .status(400)
         .json({ error: "Only failed verifications can be refunded." });
+    }
+
+    if (session.Item.refundTxHash?.S) {
+      return res
+        .status(400)
+        .json({ error: "Session has already been refunded." });
     }
 
     // Create mutex. We use mutex here so that only one refund request
