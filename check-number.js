@@ -259,38 +259,38 @@ function getCountryFromPhoneNumber(phoneNumber) {
 // })
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
-app.get("/getCredentials/v2/:number/:code/:country/", (req, res, next) => {
-    req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
-    console.log("getCredentials v2 was called ")
-    client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
-            .verificationChecks
-            .create({to: req.params.number, code: req.params.code})
-            .then(verification => {
-                if(verification.status !== "approved"){next("There was a problem verifying the number with the code provided")}
-                registerAndGetCredentialsIfSafe("v2", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return}, )
-            }).catch(err => {
-                console.log('getCredentials v2: error', err)
-                next("There was a problem verifying the number with the code provided")
-            });
-})
+// app.get("/getCredentials/v2/:number/:code/:country/", (req, res, next) => {
+//     req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
+//     console.log("getCredentials v2 was called ")
+//     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
+//             .verificationChecks
+//             .create({to: req.params.number, code: req.params.code})
+//             .then(verification => {
+//                 if(verification.status !== "approved"){next("There was a problem verifying the number with the code provided")}
+//                 registerAndGetCredentialsIfSafe("v2", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return}, )
+//             }).catch(err => {
+//                 console.log('getCredentials v2: error', err)
+//                 next("There was a problem verifying the number with the code provided")
+//             });
+// })
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
-app.get("/getCredentials/v3/:number/:code/:country/", async (req, res, next) => {
-    req.setTimeout(10000); 
-    console.log("getCredentials v3 was called for number",req.params.number)
-    let result = false;
+// app.get("/getCredentials/v3/:number/:code/:country/", async (req, res, next) => {
+//     req.setTimeout(10000); 
+//     console.log("getCredentials v3 was called for number",req.params.number)
+//     let result = false;
     
-    try { 
-        result = await verify(req.params.number, req.params.code)
-        if(result) {
-            registerAndGetCredentialsIfSafe("doesnt_matter", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return})
-        }
+//     try { 
+//         result = await verify(req.params.number, req.params.code)
+//         if(result) {
+//             registerAndGetCredentialsIfSafe("doesnt_matter", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return})
+//         }
         
-    } catch (err) {
-        console.log('getCredentials v3: error', err)
-        next(err.message)
-    }
-})
+//     } catch (err) {
+//         console.log('getCredentials v3: error', err)
+//         next(err.message)
+//     }
+// })
 
 // Express error handling
 app.use(function (err, req, res, next) {
