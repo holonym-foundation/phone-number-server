@@ -228,12 +228,12 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
 })
 
 // Sends a new code to number (E.164 format e.g. +13109273149)
-app.get("/send/v3/:number", async (req, res) => {
-    console.log("sending to ", req.params.number)
-    const countryCode = getCountryFromPhoneNumber(req.params.number);
-    await begin(req.params.number, countryCode)
-    res.sendStatus(200)
-})
+// app.get("/send/v3/:number", async (req, res) => {
+//     console.log("sending to ", req.params.number)
+//     const countryCode = getCountryFromPhoneNumber(req.params.number);
+//     await begin(req.params.number, countryCode)
+//     res.sendStatus(200)
+// })
 
 function getCountryFromPhoneNumber(phoneNumber) {
     try {
@@ -248,15 +248,15 @@ function getCountryFromPhoneNumber(phoneNumber) {
 }
 
 // Sends a new code to number (E.164 format e.g. +13109273149)
-app.get("/send/:number", (req, res) => {
-    // req.setTimeout(5000); // Will timeout if no response from Twilio after 5s
-    console.log("sending to ", req.params.number)
-    client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
-                .verifications
-                .create({to: req.params.number, channel: "sms"})
-                .then(() => {res.status(200);return;});
+// app.get("/send/:number", (req, res) => {
+//     // req.setTimeout(5000); // Will timeout if no response from Twilio after 5s
+//     console.log("sending to ", req.params.number)
+//     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
+//                 .verifications
+//                 .create({to: req.params.number, channel: "sms"})
+//                 .then(() => {res.status(200);return;});
                 
-})
+// })
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
 app.get("/getCredentials/v2/:number/:code/:country/", (req, res, next) => {
