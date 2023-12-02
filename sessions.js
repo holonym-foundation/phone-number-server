@@ -39,7 +39,7 @@ redis.connect();
  * - Ensure amount is > desired amount.
  * - Ensure tx is confirmed.
  */
-async function validateTxForSessionPayment(chainId, txHash) {
+async function validateTxForSessionPayment(session, chainId, txHash) {
   let tx;
   if (chainId === 1) {
     tx = await ethereumProvider.getTransaction(txHash);
@@ -102,6 +102,14 @@ async function validateTxForSessionPayment(chainId, txHash) {
     return {
       status: 400,
       error: "Transaction has not been confirmed yet.",
+    };
+  }
+
+  const sidDigest = ethers.utils.keccak256("0x" + session.Item.id.S);
+  if (tx.data !== sidDigest) {
+    return {
+      status: 400,
+      error: "Invalid transaction data",
     };
   }
 
@@ -463,7 +471,7 @@ async function payment(req, res) {
         .json({ error: "Session is already associated with a transaction" });
     }
 
-    const validationResult = await validateTxForSessionPayment(chainId, txHash);
+    const validationResult = await validateTxForSessionPayment(session, chainId, txHash);
     if (validationResult.error) {
       return res
         .status(validationResult.status)
