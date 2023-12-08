@@ -192,7 +192,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
 
         return res.send(creds);
     } catch (err) {
-        console.log('getCredentials v4: error', err)
+        console.log(`getCredentials v4: error for session ${req.params.sessionId}`, err)
 
         // We do not set session status to VERIFICATION_FAILED if the error was simply
         // due to rate limiting requests from the user's country. We only want to set
