@@ -12,6 +12,7 @@ const {
 } = (require("./dynamodb.js"));
 const { begin, verify } = require("./otp.js");
 const { sessionsRouter } = require("./sessions.js");
+const { adminRouter } = require("./admin.js");
 const {
     sessionStatusEnum,
     maxAttemptsPerSession,
@@ -348,6 +349,7 @@ function registerIfSafe(phoneNumber, country, next, callback) {
 }
 
 app.use("/sessions", sessionsRouter);
+app.use("/admin", adminRouter);
 
 /* - */
 app.listen(port);

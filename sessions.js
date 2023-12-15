@@ -105,20 +105,20 @@ async function validateTxForSessionPayment(session, chainId, txHash) {
     };
   }
 
-  const sidDigest = ethers.utils.keccak256("0x" + session.Item.id.S);
-  if (tx.data !== sidDigest) {
-    return {
-      status: 400,
-      error: "Invalid transaction data",
-    };
-  }
-
   const sessionWithTxHash = await getPhoneSessionByTxHash(txHash)
 
   if (sessionWithTxHash) {
     return {
       status: 400,
       error: "Transaction has already been used to pay for a session",
+    };
+  }
+
+  const sidDigest = ethers.utils.keccak256("0x" + session.Item.id.S);
+  if (tx.data !== sidDigest) {
+    return {
+      status: 400,
+      error: "Invalid transaction data",
     };
   }
 
@@ -613,6 +613,82 @@ async function paymentV2(req, res) {
 
 /**
  * ENDPOINT.
+ */
+async function paymentV3(req, res) {
+  try {
+    const apiKey = req.headers["x-api-key"];
+
+    if (apiKey !== process.env.ADMIN_API_KEY_LOW_PRIVILEGE) {
+      return res.status(401).json({ error: "Invalid API key." });
+    }
+
+    const id = req.params.id;
+    const chainId = Number(req.body.chainId);
+    const txHash = req.body.txHash;
+    console.log('rq', req.body)
+    if (!chainId || supportedChainIds.indexOf(chainId) === -1) {
+      return res.status(400).json({
+        error: `Missing chainId. chainId must be one of ${supportedChainIds.join(
+          ", "
+        )}`,
+      });
+    }
+    if (!txHash) {
+      return res.status(400).json({ error: "txHash is required" });
+    }
+
+    const session = await getPhoneSessionById(id)
+
+    if (!session?.Item) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    if (session?.Item?.txHash?.S) {
+      return res
+        .status(400)
+        .json({ error: "Session is already associated with a transaction" });
+    }
+
+    const validationResult = await validateTxForSessionPayment(session, chainId, txHash);
+    if (validationResult.error && !validationResult.error.includes("Invalid transaction data")) {
+      return res
+        .status(validationResult.status)
+        .json({ error: validationResult.error });
+    }
+
+    await updatePhoneSession(
+      id,
+      null,
+      sessionStatusEnum.IN_PROGRESS,
+      chainId.toString(),
+      txHash,
+      null,
+      null,
+      null,
+    )
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    if (err.response) {
+      console.error(
+        { error: err.response.data },
+        "Error in paymentV3"
+      );
+    } else if (err.request) {
+      console.error(
+        { error: err.request.data },
+        "Error in paymentV3"
+      );
+    } else {
+      console.error({ error: err }, "Error in paymentV3");
+    }
+
+    return res.status(500).json({ error: "An unknown error occurred" });
+  }
+}
+
+/**
+ * ENDPOINT.
  * 
  * Allows a user to request a refund for a failed verification session.
  */
@@ -790,6 +866,7 @@ sessionsRouter.post("/", postSession);
 sessionsRouter.post("/:id/paypal-order", createPayPalOrder);
 sessionsRouter.post("/:id/payment", payment);
 sessionsRouter.post("/:id/payment/v2", paymentV2);
+sessionsRouter.post("/:id/payment/v3", paymentV3);
 sessionsRouter.post("/:id/refund", refund);
 sessionsRouter.post("/:id/refund/v2", refundV2);
 sessionsRouter.get("/", getSessions);
