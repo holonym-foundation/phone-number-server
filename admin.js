@@ -38,7 +38,8 @@ async function userSessions(req, res) {
         return res.status(404).json({ error: "Session not found" });
       }
 
-      sessions = await getPhoneSessionsBySigDigest(session.Item.sigDigest.S);
+      const data = await getPhoneSessionsBySigDigest(session.Item.sigDigest.S);
+      sessions = data.Items;
     }
 
     if (txHash) {
@@ -48,7 +49,8 @@ async function userSessions(req, res) {
         return res.status(404).json({ error: "Session not found" });
       }
 
-      sessions = await getPhoneSessionsBySigDigest(session.sigDigest.S);
+      const data = await getPhoneSessionsBySigDigest(session.sigDigest.S);
+      sessions = data.Items;
     }
 
     return res.status(200).json(

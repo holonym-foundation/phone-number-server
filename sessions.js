@@ -625,7 +625,6 @@ async function paymentV3(req, res) {
     const id = req.params.id;
     const chainId = Number(req.body.chainId);
     const txHash = req.body.txHash;
-    console.log('rq', req.body)
     if (!chainId || supportedChainIds.indexOf(chainId) === -1) {
       return res.status(400).json({
         error: `Missing chainId. chainId must be one of ${supportedChainIds.join(
