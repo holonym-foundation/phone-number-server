@@ -90,8 +90,6 @@ async function failSession(req, res) {
 
     const session = await getPhoneSessionById(id);
 
-    console.log('session', session)
-
     if (!session?.Item) {
       return res.status(404).json({ error: "Session not found" });
     }
