@@ -69,8 +69,62 @@ async function userSessions(req, res) {
   }
 }
 
+/**
+ * ENDPOINT.
+ * 
+ * Set a session's status to failed.
+ */
+async function failSession(req, res) {
+  try {
+    const apiKey = req.headers["x-api-key"];
+
+    if (apiKey !== process.env.ADMIN_API_KEY_LOW_PRIVILEGE) {
+      return res.status(401).json({ error: "Invalid API key." });
+    }
+
+    const id = req.body.id;
+
+    if (!id) {
+      return res.status(400).json({ error: "id is required in request body" });
+    }
+
+    const session = await getPhoneSessionById(id);
+
+    console.log('session', session)
+
+    if (!session?.Item) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
+      return res.status(400).json({ 
+        error: `Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`
+      });
+    }
+
+    await updatePhoneSession(
+      id,
+      null,
+      sessionStatusEnum.VERIFICATION_FAILED,
+      null,
+      null,
+      null,
+      null,
+      null
+    )
+
+    return res.status(200).json({
+      success: true
+    });
+  } catch (err) {
+    console.log("admin/fail-session: Error:", err.message);
+    return res.status(500).json({ error: "An unknown error occurred" });
+  }
+}
+
 const adminRouter = express.Router();
 
 adminRouter.post("/user-sessions", userSessions);
+adminRouter.post("/fail-session", failSession);
 
 module.exports.adminRouter = adminRouter;
