@@ -1,6 +1,7 @@
 const assert = require("assert");
 const axios = require("axios");
-const { issue, getAddress } = require("holonym-wasm-issuer");
+const { issue: issuev0, getAddress } = require("holonym-wasm-issuer-v0");
+const { issue: issuev1, getAddress: getAddressv1 } = require("holonym-wasm-issuer-v1");
 const express = require("express");
 const cors = require("cors");
 const {
@@ -228,6 +229,134 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
     }
 })
 
+/**
+ * v5 is the same as v4, but it uses the no-Merkle-tree credential scheme from Holonym v3. (The
+ * version numbers for these API endpoints do not correspond to the versions numbers for Holonym.)
+ * 
+ * Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
+ */
+app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async (req, res) => {
+    req.setTimeout(10000); 
+    console.log("getCredentials v5 was called for number", req.params.number)    
+
+    const issuanceNullifier = req.params.nullifier;
+
+    try {
+        const session = await getPhoneSessionById(req.params.sessionId)
+
+        if (!session) {
+            return res.status(400).send("Invalid sessionId")
+        }
+
+        if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
+            return res.status(400).send(`Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`)
+        }
+
+        const result = await verify(req.params.number, req.params.code)
+
+        if (!result) {
+            await updatePhoneSession(
+                req.params.sessionId,
+                null,
+                sessionStatusEnum.VERIFICATION_FAILED,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+
+            return res.status(400).send("Could not verify number with given code")
+        }
+
+        const response = await axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${req.params.number}?country[]=${req.params.country}`)
+        if (!("fraud_score" in response?.data)) {
+            console.error(`Invalid response: ${JSON.stringify(response)}`)
+            return res.status(500).send(`Received invalid response from ipqualityscore`)
+        }
+
+        const isRegistered = await getIsRegistered(req.params.number)
+
+        if (isRegistered) {
+            console.log(`Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`)
+            
+            await updatePhoneSession(
+                req.params.sessionId,
+                null,
+                sessionStatusEnum.VERIFICATION_FAILED,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+            
+            return res.status(400).send(`Number has been registered already!`)
+        }
+
+        const isSafe = response.data.fraud_score <= MAX_FRAUD_SCORE
+
+        if (!isSafe) {
+            console.log(`Phone number ${req.params.number} could not be determined to belong to a unique human`)
+            return res.status(400).send(`Phone number could not be determined to belong to a unique human. sessionId: ${req.params.sessionId}`)
+        }
+
+        const phoneNumber = req.params.number.replace("+", "");
+        const creds = JSON.parse(issuev1(PRIVKEY, issuanceNullifier, phoneNumber, "0"));
+
+        await updatePhoneSession(
+            req.params.sessionId,
+            null,
+            sessionStatusEnum.ISSUED,
+            null,
+            null,
+            null,
+            null,
+            null
+        )
+        
+        // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
+        if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
+            addNumber(req.params.number);
+        }
+
+        return res.send(creds);
+    } catch (err) {
+        console.log(`getCredentials v5: error for session ${req.params.sessionId}`, err)
+
+        // We do not set session status to VERIFICATION_FAILED if the error was simply
+        // due to rate limiting requests from the user's country. We only want to set
+        // the session status to VERIFICATION_FAILED if the error was due to the user.
+        if (!(err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
+            await updatePhoneSession(
+                req.params.sessionId,
+                null,
+                sessionStatusEnum.VERIFICATION_FAILED,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        }
+
+        if (err.message === ERROR_MESSAGES.TOO_MANY_ATTEMPTS) {
+            return res.status(400).send(ERROR_MESSAGES.TOO_MANY_ATTEMPTS)
+        }
+        if ((err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
+            return res.status(400).send(err.message)
+        }
+        if (err.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
+            return res.status(400).send(ERROR_MESSAGES.OTP_NOT_FOUND)
+        }
+        if (err.message === ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
+            return res.status(400).send(ERROR_MESSAGES.OTP_DOES_NOT_MATCH)
+        }
+
+        res.status(500).send(`An unknown error occurred. Could not verify number with given code. sessionId: ${req.params.sessionId}`)
+    }
+})
+
 // Sends a new code to number (E.164 format e.g. +13109273149)
 // app.get("/send/v3/:number", async (req, res) => {
 //     console.log("sending to ", req.params.number)
@@ -305,7 +434,7 @@ app.use(function (err, req, res, next) {
 async function credsFromNumber(phoneNumberWithPlus) {
     console.log("credsFromNumber was called with number ", phoneNumberWithPlus)
     const phoneNumber = phoneNumberWithPlus.replace("+", "");
-    return issue(PRIVKEY, phoneNumber, "0");
+    return issuev0(PRIVKEY, phoneNumber, "0");
 }
 
 function registerAndGetCredentialsIfSafe(version, phoneNumber, country, next, callback) {
