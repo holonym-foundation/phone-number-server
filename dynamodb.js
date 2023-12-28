@@ -82,10 +82,10 @@ const putPhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttem
  * @param {string | undefined} payPal 
  */
 const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash, payPal) => {    
-        console.log(
-            'updating session. args:',
-            [id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash, payPal]
-        )
+        // console.log(
+        //     'updating session. args:',
+        //     [id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash, payPal]
+        // )
         const expressions = [
             (sigDigest ? 'sigDigest = :sigDigest' : ''),
             (sessionStatus ? 'sessionStatus = :sessionStatus' : ''),
@@ -111,7 +111,7 @@ const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAt
                 UpdateExpression: updateExpression,
                 ExpressionAttributeValues: expressionAttributeValues
         }
-        console.log('updatePhoneSession: update params:', JSON.stringify(params, null, 2))
+        // console.log('updatePhoneSession: update params:', JSON.stringify(params, null, 2))
         return ddb.updateItem(params).promise()
 }
 
