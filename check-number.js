@@ -197,9 +197,12 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
         console.log(`getCredentials v4: error for session ${req.params.sessionId}`, err)
 
         // We do not set session status to VERIFICATION_FAILED if the error was simply
-        // due to rate limiting requests from the user's country. We only want to set
-        // the session status to VERIFICATION_FAILED if the error was due to the user.
-        if (!(err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
+        // due to rate limiting requests from the user's country or if user inputted incorrect
+        // OTP.
+        if (
+            !(err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY) &&
+            err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH
+        ) {
             await updatePhoneSession(
                 req.params.sessionId,
                 null,
@@ -325,9 +328,12 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
         console.log(`getCredentials v5: error for session ${req.params.sessionId}`, err)
 
         // We do not set session status to VERIFICATION_FAILED if the error was simply
-        // due to rate limiting requests from the user's country. We only want to set
-        // the session status to VERIFICATION_FAILED if the error was due to the user.
-        if (!(err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
+        // due to rate limiting requests from the user's country or if user inputted incorrect
+        // OTP.
+        if (
+            !(err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY) &&
+            err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH
+        ) {
             await updatePhoneSession(
                 req.params.sessionId,
                 null,
