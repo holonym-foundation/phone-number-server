@@ -167,10 +167,21 @@ async function refundMintFeeOnChain(session, to) {
     };
   }
 
-  const txResponse = await wallet.sendTransaction({
+  const txReq = await wallet.populateTransaction({
     to: to,
     value: refundAmount,
   });
+
+  // For some reason gas estimates from Fantom are way off. We manually increase
+  // gas to avoid "transaction underpriced" error. Hopefully this is unnecessary
+  // in the future. The following values happened to be sufficient at the time
+  // of adding this block.
+  if (session.chainId === 250) {
+    txReq.maxFeePerGas = txReq.maxFeePerGas.mul(2);
+    txReq.maxPriorityFeePerGas = txReq.maxPriorityFeePerGas.mul(14);
+  }
+
+  const txResponse = await wallet.sendTransaction(txReq);
 
   const receipt = await txResponse.wait();
 
