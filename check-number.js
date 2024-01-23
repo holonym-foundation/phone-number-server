@@ -66,6 +66,14 @@ app.post("/send/v4", async (req, res) => {
             return res.status(400).send("Session has reached max attempts")
         }
 
+        const isRegistered = await getIsRegistered(number)
+
+        if (isRegistered) {
+            console.log(`/send/v4: Number has been registered already. Number: ${number}. sessionId: ${sessionId}`)
+
+            return res.status(400).send(`Number has been registered already!`)
+        }
+
         console.log("sending to ", number)
         const countryCode = getCountryFromPhoneNumber(number);
         await begin(number, countryCode)
