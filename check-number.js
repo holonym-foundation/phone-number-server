@@ -264,6 +264,11 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
         }
 
         if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
+            if (session.Item.sessionStatus.S === sessionStatusEnum.VERIFICATION_FAILED) {
+                return res
+                    .status(400)
+                    .send(`Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}. Failure reason: ${session.Item?.failureReason?.S ?? 'Unknown'}`)
+            }
             return res.status(400).send(`Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`)
         }
 
