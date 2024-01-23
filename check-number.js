@@ -79,7 +79,7 @@ app.post("/send/v4", async (req, res) => {
         await begin(number, countryCode)
 
         const attempts = Number(session.Item.numAttempts.N) + 1
-        await updatePhoneSession(sessionId, null, null, null, null, attempts, null, null)
+        await updatePhoneSession(sessionId, null, null, null, null, attempts, null, null, null)
 
         res.sendStatus(200)
     } catch (err) {
@@ -142,7 +142,8 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
                 null,
                 null,
                 null,
-                null
+                null,
+                "Could not verify number with given code"
             )
 
             return res.status(400).send("Could not verify number with given code")
@@ -167,10 +168,11 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
                 null,
                 null,
                 null,
-                null
+                null,
+                "Number has been registered already"
             )
             
-            return res.status(400).send(`Number has been registered already!`)
+            return res.status(400).send("Number has been registered already!")
         }
 
         const isSafe = response.data.fraud_score <= MAX_FRAUD_SCORE
@@ -188,6 +190,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             req.params.sessionId,
             null,
             sessionStatusEnum.ISSUED,
+            null,
             null,
             null,
             null,
@@ -219,7 +222,8 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
                 null,
                 null,
                 null,
-                null
+                null,
+                err.message
             )
         }
 
@@ -274,7 +278,8 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
                 null,
                 null,
                 null,
-                null
+                null,
+                "Could not verify number with given code"
             )
 
             return res.status(400).send("Could not verify number with given code")
@@ -299,10 +304,11 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
                 null,
                 null,
                 null,
-                null
+                null,
+                "Number has been registered already"
             )
             
-            return res.status(400).send(`Number has been registered already!`)
+            return res.status(400).send("Number has been registered already!")
         }
 
         const isSafe = response.data.fraud_score <= MAX_FRAUD_SCORE
@@ -319,6 +325,7 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
             req.params.sessionId,
             null,
             sessionStatusEnum.ISSUED,
+            null,
             null,
             null,
             null,
@@ -350,7 +357,8 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
                 null,
                 null,
                 null,
-                null
+                null,
+                err.message
             )
         }
 

@@ -81,7 +81,17 @@ const putPhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttem
  * @param {string | undefined} refundTxHash 
  * @param {string | undefined} payPal 
  */
-const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash, payPal) => {    
+const updatePhoneSession = (
+    id,
+    sigDigest,
+    sessionStatus,
+    chainId,
+    txHash,
+    numAttempts,
+    refundTxHash,
+    payPal,
+    failureReason
+) => {    
         // console.log(
         //     'updating session. args:',
         //     [id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash, payPal]
@@ -93,7 +103,8 @@ const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAt
             (txHash ? 'txHash = :txHash' : ''),
             (numAttempts ? 'numAttempts = :numAttempts' : ''),
             (refundTxHash ? 'refundTxHash = :refundTxHash' : ''),
-            (payPal ? 'payPal = :payPal' : '')
+            (payPal ? 'payPal = :payPal' : ''),
+            (failureReason ? 'failureReason = :failureReason' : '')
         ].filter(x => x !== '').join(', ');
         const updateExpression = 'SET ' + expressions;
         const expressionAttributeValues = {
@@ -104,6 +115,7 @@ const updatePhoneSession = (id, sigDigest, sessionStatus, chainId, txHash, numAt
                 ...(numAttempts ? { ':numAttempts': { N: `${numAttempts}` } } : {}),
                 ...(refundTxHash ? { ':refundTxHash': { S: refundTxHash } } : {}),
                 ...(payPal ? { ':payPal': { S: payPal } } : {}),
+                ...(failureReason ? { ':failureReason': { S: failureReason } } : {})
         };
         const params = {
                 TableName: 'phone-sessions',

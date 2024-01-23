@@ -108,7 +108,8 @@ async function failSession(req, res) {
       null,
       null,
       null,
-      null
+      null,
+      "Unknown"
     )
 
     return res.status(200).json({
