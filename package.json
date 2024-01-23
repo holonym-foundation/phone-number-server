@@ -28,7 +28,7 @@
     "express": "^4.18.2",
     "geoip-lite": "^1.4.7",
     "holonym-wasm-issuer-v0": "npm:holonym-wasm-issuer@^0.2.2",
-    "holonym-wasm-issuer-v1": "npm:holonym-wasm-issuer@^1.1.4",
+    "holonym-wasm-issuer-v2": "npm:holonym-wasm-issuer@^2.0.0",
     "libphonenumber-js": "^1.10.44",
     "messente_api": "^1.5.0",
     "mysql": "^2.18.1",

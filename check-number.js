@@ -1,7 +1,7 @@
 const assert = require("assert");
 const axios = require("axios");
 const { issue: issuev0, getAddress } = require("holonym-wasm-issuer-v0");
-const { issue: issuev1, getAddress: getAddressv1 } = require("holonym-wasm-issuer-v1");
+const { issue: issuev2, getAddress: getAddressv1 } = require("holonym-wasm-issuer-v2");
 const express = require("express");
 const cors = require("cors");
 const {
@@ -305,7 +305,7 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
         }
 
         const phoneNumber = req.params.number.replace("+", "");
-        const creds = JSON.parse(issuev1(PRIVKEY, issuanceNullifier, phoneNumber, "0"));
+        const creds = JSON.parse(issuev2(PRIVKEY, issuanceNullifier, phoneNumber, "0"));
 
         await updatePhoneSession(
             req.params.sessionId,
