@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const Messente = require('messente_api');
 const { ERROR_MESSAGES } = require('./constants.js');
 
-const MAX_OTP_ATTEMPTS = 5;
+const MAX_OTP_ATTEMPTS = 15;
 const MAX_OTP_ATTEMPTS_COOLDOWN = 60 * 30; // 30 minutes
 const OTP_EXPIRY = 60 * 5; // 5 minutes
 const MAX_COUNTRY_ATTEMP_PER_MINUTE = 10;
