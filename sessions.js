@@ -179,6 +179,10 @@ async function refundMintFeeOnChain(session, to) {
   if (Number(session.Item.chainId.N) === 250) {
     txReq.maxFeePerGas = txReq.maxFeePerGas.mul(2);
     txReq.maxPriorityFeePerGas = txReq.maxPriorityFeePerGas.mul(14);
+
+    if (txReq.maxPriorityFeePerGas.gt(txReq.maxFeePerGas)) {
+      txReq.maxPriorityFeePerGas = txReq.maxFeePerGas;
+    }
   }
 
   const txResponse = await wallet.sendTransaction(txReq);
