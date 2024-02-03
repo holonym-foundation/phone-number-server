@@ -94,7 +94,10 @@ async function failSession(req, res) {
       return res.status(404).json({ error: "Session not found" });
     }
 
-    if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
+    if (
+      session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS &&
+      session.Item.sessionStatus.S !== sessionStatusEnum.ISSUED
+    ) {
       return res.status(400).json({ 
         error: `Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`
       });
