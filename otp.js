@@ -32,7 +32,7 @@ const cacheCountryRequest = async (countryCode) => {
     await redis.expire('country_requests_minutes', 60)
     await redis.expire('country_requests_hours', 3600) 
     if(countMinut > MAX_COUNTRY_ATTEMP_PER_MINUTE || countHour > MAX_COUNTRY_ATTEMP_PER_HOUR) {
-        throw new Error(`${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY} ${country}`) 
+        throw new Error(`${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY} ${countryCode}`) 
     }
 }
 
