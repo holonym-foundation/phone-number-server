@@ -63,6 +63,17 @@ app.post("/send/v4", async (req, res) => {
         }
 
         if (session.Item.numAttempts.N >= maxAttemptsPerSession) {
+            await updatePhoneSession(
+                sessionId,
+                null,
+                sessionStatusEnum.VERIFICATION_FAILED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Session has reached max attempts"
+            )
             return res.status(400).send("Session has reached max attempts")
         }
 
