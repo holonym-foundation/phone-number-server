@@ -210,10 +210,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
         // We do not set session status to VERIFICATION_FAILED if the error was simply
         // due to rate limiting requests from the user's country or if user inputted incorrect
         // OTP.
-        if (
-            !(err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY) &&
-            err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH
-        ) {
+        if (err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
             await updatePhoneSession(
                 req.params.sessionId,
                 null,
@@ -227,12 +224,6 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             )
         }
 
-        if (err.message === ERROR_MESSAGES.TOO_MANY_ATTEMPTS) {
-            return res.status(400).send(ERROR_MESSAGES.TOO_MANY_ATTEMPTS)
-        }
-        if ((err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
-            return res.status(400).send(err.message)
-        }
         if (err.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
             return res.status(400).send(ERROR_MESSAGES.OTP_NOT_FOUND)
         }
@@ -350,10 +341,7 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
         // We do not set session status to VERIFICATION_FAILED if the error was simply
         // due to rate limiting requests from the user's country or if user inputted incorrect
         // OTP.
-        if (
-            !(err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY) &&
-            err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH
-        ) {
+        if (err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
             await updatePhoneSession(
                 req.params.sessionId,
                 null,
@@ -367,12 +355,6 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
             )
         }
 
-        if (err.message === ERROR_MESSAGES.TOO_MANY_ATTEMPTS) {
-            return res.status(400).send(ERROR_MESSAGES.TOO_MANY_ATTEMPTS)
-        }
-        if ((err.message ?? '').includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
-            return res.status(400).send(err.message)
-        }
         if (err.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
             return res.status(400).send(ERROR_MESSAGES.OTP_NOT_FOUND)
         }

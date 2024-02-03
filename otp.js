@@ -4,11 +4,7 @@ const crypto = require('crypto');
 const Messente = require('messente_api');
 const { ERROR_MESSAGES } = require('./constants.js');
 
-const MAX_OTP_ATTEMPTS = 15;
-const MAX_OTP_ATTEMPTS_COOLDOWN = 60 * 30; // 30 minutes
 const OTP_EXPIRY = 60 * 5; // 5 minutes
-const MAX_COUNTRY_ATTEMP_PER_MINUTE = 10;
-const MAX_COUNTRY_ATTEMP_PER_HOUR = 200;
 
 const redis = createClient();
 redis.on('error', err => console.log('Redis Client Error', err));
@@ -22,31 +18,11 @@ const api = new Messente.OmnimessageApi();
 
 const getOTP = () => crypto.randomInt(0,1000000).toString().padStart(6,'0')
 
-const cacheCountryRequest = async (countryCode) => {
-    const minuteKey = `minute:${countryCode}`;
-    const hourKey = `hour:${countryCode}`;
-
-    const countMinut = await redis.hIncrBy('country_requests_minutes', minuteKey, 1);
-    const countHour = await redis.hIncrBy('country_requests_hours', hourKey, 1);
-
-    await redis.expire('country_requests_minutes', 60)
-    await redis.expire('country_requests_hours', 3600) 
-    if(countMinut > MAX_COUNTRY_ATTEMP_PER_MINUTE || countHour > MAX_COUNTRY_ATTEMP_PER_HOUR) {
-        throw new Error(`${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY} ${countryCode}`) 
-    }
-}
-
 const cacheOTP = async (phoneNumber, otp) => {
     await redis.set(`OTP:${phoneNumber}`, otp, 'EX',OTP_EXPIRY)
 }
 
 const checkOTP = async (phoneNumber, otp) => {
-    // console.log('DEBUGGING: OTP should be', await redis.get(phoneNumber)
-    // Rate limit:
-    const recentAttempts = await redis.incr(`RecentAttempts:${phoneNumber}`)
-    await redis.expire(`RecentAttempts:${phoneNumber}`, MAX_OTP_ATTEMPTS_COOLDOWN)
-    if (recentAttempts > MAX_OTP_ATTEMPTS) throw new Error(ERROR_MESSAGES.TOO_MANY_ATTEMPTS)
-
     const cachedOTP = await redis.get(`OTP:${phoneNumber}`)
 
     if (!cachedOTP) throw new Error(ERROR_MESSAGES.OTP_NOT_FOUND)
@@ -54,7 +30,6 @@ const checkOTP = async (phoneNumber, otp) => {
 
     // If we got here it was successful. Clear and return true
     await redis.del(`OTP:${phoneNumber}`)
-    await redis.del(`RecentAttempts:${phoneNumber}`)
     return true
 }
 
@@ -81,7 +56,6 @@ const sendOTP = async (phoneNumber, otp) => {
 
 async function begin(phoneNumber, countryCode) {
     const otp = getOTP();
-    await cacheCountryRequest(countryCode)
     await cacheOTP(phoneNumber, otp);
     await sendOTP(phoneNumber, otp);
 }
