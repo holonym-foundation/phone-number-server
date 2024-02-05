@@ -15,6 +15,7 @@ const supportedChainIds = [
   10, // Optimism
   250, // Fantom
   43114, // Avalanche
+  1313161554, // Aurora
 ];
 if (process.env.NODE_ENV === "development") {
   supportedChainIds.push(420); // Optimism goerli
@@ -41,6 +42,9 @@ const fantomProvider = new ethers.providers.JsonRpcProvider(
 );
 const avalancheProvider = new ethers.providers.JsonRpcProvider(
   "https://api.avax.network/ext/bc/C/rpc"
+);
+const auroraProvider = new ethers.providers.JsonRpcProvider(
+  'https://mainnet.aurora.dev'
 );
 
 const ethereumCMCID = 1027;
@@ -72,6 +76,7 @@ module.exports = {
   optimismGoerliProvider,
   fantomProvider,
   avalancheProvider,
+  auroraProvider,
   ethereumCMCID,
   fantomCMCID,
   avalancheCMCID,

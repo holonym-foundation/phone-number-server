@@ -19,6 +19,7 @@ const {
   optimismGoerliProvider,
   fantomProvider,
   avalancheProvider,
+  auroraProvider,
   payPalApiUrlBase,
 } = require('./constants.js');
 const {
@@ -49,6 +50,8 @@ async function validateTxForSessionPayment(session, chainId, txHash) {
     tx = await fantomProvider.getTransaction(txHash);
   } else if (chainId === 43114) {
     tx = await avalancheProvider.getTransaction(txHash);
+  } else if (chainId === 1313161554) {
+    tx = await auroraProvider.getTransaction(txHash);
   } else if (process.env.NODE_ENV === "development" && chainId === 420) {
     tx = await optimismGoerliProvider.getTransaction(txHash);
   }
@@ -72,7 +75,7 @@ async function validateTxForSessionPayment(session, chainId, txHash) {
   const expectedAmountInUSD = 5 * 0.98;
 
   let expectedAmountInToken;
-  if ([1, 10].includes(chainId)) {
+  if ([1, 10, 1313161554].includes(chainId)) {
     expectedAmountInToken = await usdToETH(expectedAmountInUSD);
   } else if (chainId === 250) {
     expectedAmountInToken = await usdToFTM(expectedAmountInUSD);
@@ -135,6 +138,8 @@ async function refundMintFeeOnChain(session, to) {
     provider = fantomProvider;
   } else if (Number(session.Item.chainId.N) === 43114) {
     provider = avalancheProvider;
+  } else if (Number(session.Item.chainId.N) === 1313161554) {
+    provider = auroraProvider;
   } else if (process.env.NODE_ENV === "development" && Number(session.Item.chainId.N) === 420) {
     provider = optimismGoerliProvider;
   }
