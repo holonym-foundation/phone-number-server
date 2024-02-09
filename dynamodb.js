@@ -31,10 +31,17 @@ const getNumberParams = (value) => ({
 	Key: {'phoneNumber':{S:`${value}`}}
 })
 
-// Helper function to insert a phone number into  the db
+// Helper function to insert a phone number into the db
 const putNumberParams = (value) => ({
-        TableName: 'phone-numbers',
-        Item: {'phoneNumber':{S:`${value}`}}
+    TableName: 'phone-numbers',
+    Item: {
+        'phoneNumber': {
+            S:`${value}`
+        },
+        'insertedAt': {
+            N: `${Date.now()}`
+        }
+    }
 })
 
 // Returns true if number exists, false otherwise
