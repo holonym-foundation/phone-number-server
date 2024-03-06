@@ -25,17 +25,26 @@ if (process.env.NODE_ENV === "development") {
 // We use the same account that we use for id-server.
 const idServerPaymentAddress = "0xdca2e9ae8423d7b0f94d7f9fc09e698a45f3c851";
 
-const ethereumProvider = new ethers.providers.AlchemyProvider(
-  "homestead",
-  process.env.ALCHEMY_APIKEY
+// const ethereumProvider = new ethers.providers.AlchemyProvider(
+//   "homestead",
+//   process.env.ALCHEMY_APIKEY
+// );
+// const optimismProvider = new ethers.providers.AlchemyProvider(
+//   "optimism",
+//   process.env.ALCHEMY_APIKEY
+// );
+// const optimismGoerliProvider = new ethers.providers.AlchemyProvider(
+//   "optimism-goerli",
+//   process.env.ALCHEMY_APIKEY
+// );
+const ethereumProvider = new ethers.providers.JsonRpcProvider(
+  process.env.ETHEREUM_RPC_URL
 );
-const optimismProvider = new ethers.providers.AlchemyProvider(
-  "optimism",
-  process.env.ALCHEMY_APIKEY
+const optimismProvider = new ethers.providers.JsonRpcProvider(
+  process.env.OPTIMISM_RPC_URL
 );
-const optimismGoerliProvider = new ethers.providers.AlchemyProvider(
-  "optimism-goerli",
-  process.env.ALCHEMY_APIKEY
+const optimismGoerliProvider = new ethers.providers.JsonRpcProvider(
+  process.env.OPTIMISM_GOERLI_RPC_URL
 );
 const fantomProvider = new ethers.providers.JsonRpcProvider(
   "https://rpc.ftm.tools"
