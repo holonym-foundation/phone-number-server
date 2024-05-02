@@ -61,6 +61,7 @@ async function userSessions(req, res) {
         chainId: session.chainId?.N,
         refundTxHash: session.refundTxHash?.S,
         numAttempts: session.numAttempts.N,
+        payPal: session?.payPal?.S,
       }))
     );
   } catch (err) {
