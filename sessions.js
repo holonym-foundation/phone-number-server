@@ -892,8 +892,8 @@ sessionsRouter.post("/:id/paypal-order", createPayPalOrder);
 sessionsRouter.post("/:id/payment", payment);
 sessionsRouter.post("/:id/payment/v2", paymentV2);
 sessionsRouter.post("/:id/payment/v3", paymentV3);
-// sessionsRouter.post("/:id/refund", refund); // TODO: UNCOMMENT
-// sessionsRouter.post("/:id/refund/v2", refundV2); // TODO: UNCOMMENT
+sessionsRouter.post("/:id/refund", refund);
+sessionsRouter.post("/:id/refund/v2", refundV2);
 sessionsRouter.get("/", getSessions);
 
 module.exports.sessionsRouter = sessionsRouter;
