@@ -40,7 +40,7 @@ redis.connect();
  * - Ensure amount is > desired amount.
  * - Ensure tx is confirmed.
  */
-async function validateTxForSessionPayment(session, chainId, txHash) {
+async function validateTxForSessionPayment(session, chainId, txHash, desiredAmount) {
   let tx;
   if (chainId === 1) {
     tx = await ethereumProvider.getTransaction(txHash);
@@ -72,7 +72,7 @@ async function validateTxForSessionPayment(session, chainId, txHash) {
 
   // NOTE: This const must stay in sync with the frontend.
   // We allow a 2% margin of error.
-  const expectedAmountInUSD = 5 * 0.98;
+  const expectedAmountInUSD = desiredAmount * 0.98;
 
   let expectedAmountInToken;
   if ([1, 10, 1313161554].includes(chainId)) {
@@ -494,7 +494,7 @@ async function payment(req, res) {
         .json({ error: "Session is already associated with a transaction" });
     }
 
-    const validationResult = await validateTxForSessionPayment(session, chainId, txHash);
+    const validationResult = await validateTxForSessionPayment(session, chainId, txHash, 5);
     if (validationResult.error) {
       return res
         .status(validationResult.status)
@@ -673,7 +673,7 @@ async function paymentV3(req, res) {
         .json({ error: "Session is already associated with a transaction" });
     }
 
-    const validationResult = await validateTxForSessionPayment(session, chainId, txHash);
+    const validationResult = await validateTxForSessionPayment(session, chainId, txHash, 3);
     if (validationResult.error && !validationResult.error.includes("Invalid transaction data")) {
       return res
         .status(validationResult.status)
