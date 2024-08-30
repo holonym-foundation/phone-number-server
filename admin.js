@@ -1,5 +1,7 @@
 const express = require("express");
 const {
+  numberExists,
+  deleteNumber,
   updatePhoneSession,
   getPhoneSessionById,
   getPhoneSessionsBySigDigest,
@@ -125,9 +127,80 @@ async function failSession(req, res) {
   }
 }
 
+const deletionRateLimit = {
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  max: 10,
+  current: 0,
+  lastReset: Date.now(),
+}
+
+/**
+ * ENDPOINT.
+ */
+async function deletePhoneNumber(req, res) {
+  try {
+    const apiKey = req.headers["x-api-key"];
+
+    if (apiKey !== process.env.ADMIN_API_KEY_LOW_PRIVILEGE) {
+      return res.status(401).json({ error: "Invalid API key." });
+    }
+
+    const number = req.body.number;
+
+    if (!number) {
+      return res.status(400).json({ error: "`number` is required in request body" });
+    }
+
+    const exists = await new Promise((resolve, reject) => {
+      numberExists(number, (err, exists) => {
+        if (err) {
+          reject(err);
+          return
+        }
+        resolve(exists)
+      })
+    })
+  
+
+    if (!exists) {
+      return res.status(404).json({ error: "Number not found" });
+    }
+
+    // We don't worry about time of use time of check here, for the rate limit, 
+    // because we assume the API key is secure. Rate limit is just an extra layer. 
+    if (deletionRateLimit.current >= deletionRateLimit.max) {
+      if (Date.now() - deletionRateLimit.lastReset > deletionRateLimit.windowMs) {
+        deletionRateLimit.current = 0;
+        deletionRateLimit.lastReset = Date.now();
+      } else {
+        return res.status(429).json({ error: "Rate limit exceeded" });
+      }
+    }
+    deletionRateLimit.current++;
+
+    await new Promise((resolve, reject) => {
+      deleteNumber(number, (err, result) => {
+        if (err) {
+          reject(err);
+          return
+        }
+        resolve()
+      })
+    })
+
+    return res.status(200).json({
+      message: `Deleted number ${number}`
+    });
+  } catch (err) {
+    console.log("admin/delete-phone-number: Error:", err.message);
+    return res.status(500).json({ error: "An unknown error occurred" });
+  }
+}
+
 const adminRouter = express.Router();
 
 adminRouter.post("/user-sessions", userSessions);
 adminRouter.post("/fail-session", failSession);
+adminRouter.post("/delete-phone-number", deletePhoneNumber);
 
 module.exports.adminRouter = adminRouter;

@@ -50,6 +50,8 @@ const numberExists = (number, callback) => ddb.getItem(getNumberParams(number), 
 // Adds number to the db
 const addNumber = (number) => ddb.putItem(putNumberParams(number), (err)=>{if(err) throw 'Error storing number'})
 
+const deleteNumber = (number, callback) => ddb.deleteItem(getNumberParams(number), (err, data)=>callback(err, data))
+
 /**
  * `status` is a reserved keyword in DynamoDB, so we name it `sessionStatus`.
  * @param {string | undefined} id 
@@ -176,6 +178,7 @@ const getPhoneSessionByTxHash = async (txHash) => {
 module.exports = {
     addNumber:addNumber, 
     numberExists:numberExists,
+    deleteNumber,
     putPhoneSession,
     updatePhoneSession,
     getPhoneSessionById,
