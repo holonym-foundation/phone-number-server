@@ -1039,10 +1039,6 @@ async function generateVoucher(req, res) {
  */
 async function redeemVoucher(req, res) {
   try {
-    if (req.body.chainId && req.body.txHash) {
-      return payment(req, res);
-    }
-
     const id = req.params.id;
     const voucherId = req.body.voucherId;
 
