@@ -9,6 +9,10 @@ const {
   getPhoneSessionById,
   getPhoneSessionsBySigDigest,
   getPhoneSessionByTxHash,
+  getVoucherByTxHash,
+  getVoucherById,
+  updateVoucher,
+  batchPutVouchers,
 } = require('./dynamodb.js');
 const {
   sessionStatusEnum,
@@ -122,6 +126,92 @@ async function validateTxForSessionPayment(session, chainId, txHash, desiredAmou
     return {
       status: 400,
       error: "Invalid transaction data",
+    };
+  }
+
+  return {};
+}
+
+/**
+ * Check blockchain for tx.
+ * - Ensure recipient of tx is id-server's address.
+ * - Ensure amount is > desired amount.
+ * - Ensure tx is confirmed.
+ */
+async function validateTxForVoucherPayment(chainId, txHash, desiredAmount) {
+  let tx;
+  if (chainId === 1) {
+    tx = await ethereumProvider.getTransaction(txHash);
+  } else if (chainId === 10) {
+    tx = await optimismProvider.getTransaction(txHash);
+  } else if (chainId === 250) {
+    tx = await fantomProvider.getTransaction(txHash);
+  } else if (chainId === 43114) {
+    tx = await avalancheProvider.getTransaction(txHash);
+  } else if (chainId === 1313161554) {
+    tx = await auroraProvider.getTransaction(txHash);
+  } else if (process.env.NODE_ENV === "development" && chainId === 420) {
+    tx = await optimismGoerliProvider.getTransaction(txHash);
+  }
+
+  if (!tx) {
+    return {
+      status: 400,
+      error: "Could not find transaction with given txHash",
+    };
+  }
+
+  if (idServerPaymentAddress !== tx.to.toLowerCase()) {
+    return {
+      status: 400,
+      error: `Invalid transaction recipient. Recipient must be ${idServerPaymentAddress}`,
+    };
+  }
+
+  // NOTE: This const must stay in sync with the frontend.
+  // We allow a 2% margin of error.
+  const expectedAmountInUSD = desiredAmount * 0.98;
+
+  let expectedAmountInToken;
+  if ([1, 10, 1313161554].includes(chainId)) {
+    expectedAmountInToken = await usdToETH(expectedAmountInUSD);
+  } else if (chainId === 250) {
+    expectedAmountInToken = await usdToFTM(expectedAmountInUSD);
+  } else if (chainId === 43114) {
+    expectedAmountInToken = await usdToAVAX(expectedAmountInUSD);
+  }
+  else if (process.env.NODE_ENV === "development" && chainId === 420) {
+    expectedAmountInToken = await usdToETH(expectedAmountInUSD);
+  }
+
+  // Round to 18 decimal places to avoid this underflow error from ethers:
+  // "fractional component exceeds decimals"
+  const decimals = 18;
+  const multiplier = 10 ** decimals;
+  const rounded = Math.round(expectedAmountInToken * multiplier) / multiplier;
+
+  const expectedAmount = ethers.utils.parseEther(rounded.toString());
+
+  if (tx.value.lt(expectedAmount)) {
+    return {
+      status: 400,
+      error: `Invalid transaction amount. Amount must be greater than ${expectedAmount.toString()} on chain ${chainId}`,
+    };
+  }
+
+  if (!tx.blockHash || tx.confirmations === 0) {
+    return {
+      status: 400,
+      error: "Transaction has not been confirmed yet.",
+    };
+  }
+
+  const voucherWithTxHash = await getVoucherByTxHash(txHash);
+
+  if (voucherWithTxHash) {
+    return {
+      status: 400,
+      error: "Transaction has already been used to generate voucher",
     };
   }
 
@@ -352,7 +442,7 @@ async function postSession(req, res) {
       null
     )
 
-    return res.status(201).json({ 
+    return res.status(201).json({
       id,
       sigDigest,
       sessionStatus: sessionStatusEnum.NEEDS_PAYMENT,
@@ -421,14 +511,14 @@ async function createPayPalOrder(req, res) {
     const sessionPayPalData = JSON.parse(session?.Item?.payPal?.S ?? '{}')
 
     if ((sessionPayPalData?.orders ?? []).length > 0) {
-      sessionPayPalData.orders.push({ 
-        id: order.id, 
-        createdAt: new Date().getTime().toString() 
+      sessionPayPalData.orders.push({
+        id: order.id,
+        createdAt: new Date().getTime().toString()
       });
     } else {
-      sessionPayPalData.orders = [{ 
-        id: order.id, 
-        createdAt: new Date().getTime().toString() 
+      sessionPayPalData.orders = [{
+        id: order.id,
+        createdAt: new Date().getTime().toString()
       }]
     }
 
@@ -512,7 +602,7 @@ async function payment(req, res) {
       null,
       null
     )
-    
+
     return res.status(200).json({ success: true });
   } catch (err) {
     if (err.response) {
@@ -741,7 +831,7 @@ async function refund(req, res) {
         .status(400)
         .json({ error: "Only failed verifications can be refunded." });
     }
-    
+
     if (session.Item.refundTxHash?.S) {
       return res
         .status(400)
@@ -763,7 +853,7 @@ async function refund(req, res) {
 
     // Delete mutex
     await redis.del(mutexKey)
-    
+
     // Return response
     return res.status(response.status).json(response.data);
   } catch (err) {
@@ -825,7 +915,7 @@ async function refundV2(req, res) {
 
     // Delete mutex
     await redis.del(mutexKey)
-    
+
     // Return response
     return res.status(response.status).json(response.data);
   } catch (err) {
@@ -885,6 +975,128 @@ async function getSessions(req, res) {
   }
 }
 
+/**
+ * ENDPOINT.
+ * 
+ * Allows a user to generate a voucher for bypassing the session payment.
+ */
+async function generateVoucher(req, res) {
+  try {
+    const chainId = Number(req.body.chainId);
+    const txHash = req.body.txHash;
+    const numberOfVouchers = Number(req.body.numberOfVouchers);
+    if (!chainId || supportedChainIds.indexOf(chainId) === -1) {
+      return res.status(400).json({
+        error: `Missing chainId. chainId must be one of ${supportedChainIds.join(
+          ", "
+        )}`,
+      });
+    }
+    if (!txHash) {
+      return res.status(400).json({ error: "txHash is required" });
+    }
+    if (!numberOfVouchers || numberOfVouchers < 0) {
+      return res.status(400).json({ error: "valid numberOfVouchers is required" });
+    }
+    const totalAmount = 5 * numberOfVouchers;
+    const validationResult = await validateTxForVoucherPayment(chainId, txHash, totalAmount);
+    console.log('validationresul', validationResult)
+    if (validationResult.error) {
+      return res
+        .status(validationResult.status)
+        .json({ error: validationResult.error });
+    }
+    const voucherIds = [];
+    const voucherItems = [];
+    for (let i = 0; i < numberOfVouchers; i++) {
+      const id = randomBytes(32).toString('hex');
+      voucherIds.push(id);
+      voucherItems.push({
+        PutRequest: {
+          Item: {
+            'id': { S: `${id}` },
+            'isRedeemed': { BOOL: false },
+            'sessionId': { S: `${null}` },
+            'txHash': { S: `${txHash}` }
+        }
+        },
+      });
+    }
+    await batchPutVouchers(voucherItems);
+    return res.status(201).json({
+      voucherIds,
+    });
+  } catch (err) {
+    console.log("generateVoucher: Error:", err.message);
+    return res.status(500).json({ error: "An unknown error occurred" });
+  }
+}
+
+/**
+ * ENDPOINT.
+ * 
+ * Allows a user to redeem a valid voucher for bypassing the session payment.
+ */
+async function redeemVoucher(req, res) {
+  try {
+    const id = req.params.id;
+    const voucherId = req.body.voucherId;
+
+    if (!voucherId) {
+      return res.status(400).json({ error: "voucherId is required" });
+    }
+
+    const session = await getPhoneSessionById(id);
+
+    if (!session?.Item) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    const voucher = await getVoucherById(voucherId);
+    if (!voucher?.Item) {
+      return res.status(404).json({ error: "voucher is invalid" });
+    }
+    if (voucher.Item.isRedeemed.BOOL) {
+      return res.status(404).json({ error: "voucher is already redeemed" });
+    }
+    await updatePhoneSession(
+      id,
+      null,
+      sessionStatusEnum.IN_PROGRESS,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    )
+
+    await updateVoucher(
+      voucherId,
+      true,
+      id,
+      null
+    )
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    if (err.response) {
+      console.error(
+        { error: err.response.data },
+        "Error in redeemVoucher"
+      );
+    } else if (err.request) {
+      console.error(
+        { error: err.request.data },
+        "Error in redeemVoucher"
+      );
+    } else {
+      console.error({ error: err }, "Error in redeemVoucher");
+    }
+
+    return res.status(500).json({ error: "An unknown error occurred" });
+  }
+}
+
 const sessionsRouter = express.Router();
 
 sessionsRouter.post("/", postSession);
@@ -892,8 +1104,10 @@ sessionsRouter.post("/:id/paypal-order", createPayPalOrder);
 sessionsRouter.post("/:id/payment", payment);
 sessionsRouter.post("/:id/payment/v2", paymentV2);
 sessionsRouter.post("/:id/payment/v3", paymentV3);
+sessionsRouter.post("/:id/redeem-voucher", redeemVoucher);
 sessionsRouter.post("/:id/refund", refund);
 sessionsRouter.post("/:id/refund/v2", refundV2);
 sessionsRouter.get("/", getSessions);
+sessionsRouter.get("/generate-voucher", generateVoucher);
 
 module.exports.sessionsRouter = sessionsRouter;
