@@ -14,6 +14,7 @@ const supportedChainIds = [
   1, // Ethereum
   10, // Optimism
   250, // Fantom
+  8453, // Base
   43114, // Avalanche
   1313161554, // Aurora
 ];
@@ -45,6 +46,9 @@ const optimismProvider = new ethers.providers.JsonRpcProvider(
 );
 const optimismGoerliProvider = new ethers.providers.JsonRpcProvider(
   process.env.OPTIMISM_GOERLI_RPC_URL
+);
+const baseProvider = new ethers.providers.JsonRpcProvider(
+  process.env.BASE_RPC_URL
 );
 const fantomProvider = new ethers.providers.JsonRpcProvider(
   "https://rpc.ftm.tools"
@@ -83,6 +87,7 @@ module.exports = {
   ethereumProvider,
   optimismProvider,
   optimismGoerliProvider,
+  baseProvider,
   fantomProvider,
   avalancheProvider,
   auroraProvider,

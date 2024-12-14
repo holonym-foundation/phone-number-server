@@ -21,6 +21,7 @@ const {
   ethereumProvider,
   optimismProvider,
   optimismGoerliProvider,
+  baseProvider,
   fantomProvider,
   avalancheProvider,
   auroraProvider,
@@ -52,6 +53,8 @@ async function validateTxForSessionPayment(session, chainId, txHash, desiredAmou
     tx = await optimismProvider.getTransaction(txHash);
   } else if (chainId === 250) {
     tx = await fantomProvider.getTransaction(txHash);
+  } else if (chainId === 8453) {
+    tx = await baseProvider.getTransaction(txHash);
   } else if (chainId === 43114) {
     tx = await avalancheProvider.getTransaction(txHash);
   } else if (chainId === 1313161554) {
@@ -79,7 +82,7 @@ async function validateTxForSessionPayment(session, chainId, txHash, desiredAmou
   const expectedAmountInUSD = desiredAmount * 0.98;
 
   let expectedAmountInToken;
-  if ([1, 10, 1313161554].includes(chainId)) {
+  if ([1, 10, 1313161554, 8453].includes(chainId)) {
     expectedAmountInToken = await usdToETH(expectedAmountInUSD);
   } else if (chainId === 250) {
     expectedAmountInToken = await usdToFTM(expectedAmountInUSD);
@@ -146,6 +149,8 @@ async function validateTxForVoucherPayment(chainId, txHash, desiredAmount) {
     tx = await optimismProvider.getTransaction(txHash);
   } else if (chainId === 250) {
     tx = await fantomProvider.getTransaction(txHash);
+  } else if (chainId === 8453) {
+    tx = await baseProvider.getTransaction(txHash);
   } else if (chainId === 43114) {
     tx = await avalancheProvider.getTransaction(txHash);
   } else if (chainId === 1313161554) {
@@ -173,7 +178,7 @@ async function validateTxForVoucherPayment(chainId, txHash, desiredAmount) {
   const expectedAmountInUSD = desiredAmount * 0.98;
 
   let expectedAmountInToken;
-  if ([1, 10, 1313161554].includes(chainId)) {
+  if ([1, 10, 1313161554, 8453].includes(chainId)) {
     expectedAmountInToken = await usdToETH(expectedAmountInUSD);
   } else if (chainId === 250) {
     expectedAmountInToken = await usdToFTM(expectedAmountInUSD);
@@ -226,6 +231,8 @@ async function refundMintFeeOnChain(session, to) {
     provider = optimismProvider;
   } else if (Number(session.Item.chainId.N) === 250) {
     provider = fantomProvider;
+  } else if (Number(session.Item.chainId.N) === 8453) {
+    provider = baseProvider;
   } else if (Number(session.Item.chainId.N) === 43114) {
     provider = avalancheProvider;
   } else if (Number(session.Item.chainId.N) === 1313161554) {
