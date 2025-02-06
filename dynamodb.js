@@ -50,6 +50,8 @@ const numberExists = (number, callback) => ddb.getItem(getNumberParams(number), 
 // Adds number to the db
 const addNumber = (number) => ddb.putItem(putNumberParams(number), (err) => { if (err) throw 'Error storing number' })
 
+const getNumber = (number, callback) => ddb.getItem(getNumberParams(number), (err, data) => callback(err, data))
+
 const deleteNumber = (number, callback) => ddb.deleteItem(getNumberParams(number), (err, data) => callback(err, data))
 
 /**
@@ -256,6 +258,7 @@ const getVoucherByTxHash = async (txHash) => {
 module.exports = {
     addNumber: addNumber,
     numberExists: numberExists,
+    getNumber,
     deleteNumber,
     putPhoneSession,
     updatePhoneSession,

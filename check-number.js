@@ -7,6 +7,7 @@ const cors = require("cors");
 const {
     addNumber,
     numberExists,
+    getNumber,
     putPhoneSession,
     updatePhoneSession,
     getPhoneSessionById,
@@ -132,6 +133,33 @@ function getIsRegistered(phoneNumber) {
             if (result && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
                 resolve(true)
                 return
+            }
+            resolve(false)
+        })
+    })
+}
+
+function getIsRegisteredWithinLast11Months(phoneNumber) {
+    return new Promise((resolve, reject) => {
+        getNumber(phoneNumber, (err, result) => {
+            console.log("result", result);
+            if (err) {
+                reject(err);
+                return
+            }
+
+            if (result && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
+                const now = new Date()
+                const insertedAt = new Date(parseInt(result.Item.insertedAt.N))
+
+                // If the number was inserted within the last 11 months, it is considered registered
+                if (now - insertedAt < 1000 * 60 * 60 * 24 * 30 * 11) {
+                    resolve(true)
+                    return
+                } else {
+                    resolve(false)
+                    return
+                }
             }
             resolve(false)
         })
@@ -310,7 +338,7 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
             return res.status(500).send(`Received invalid response from ipqualityscore`)
         }
 
-        const isRegistered = await getIsRegistered(req.params.number)
+        const isRegistered = await getIsRegisteredWithinLast11Months(req.params.number)
 
         if (isRegistered) {
             console.log(`Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`)
