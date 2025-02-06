@@ -148,7 +148,7 @@ function getIsRegisteredWithinLast11Months(phoneNumber) {
                 return
             }
 
-            if (result && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
+            if (result?.Item?.insertedAt && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
                 const now = new Date()
                 const insertedAt = new Date(parseInt(result.Item.insertedAt.N))
 
