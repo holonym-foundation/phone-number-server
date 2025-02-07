@@ -90,7 +90,7 @@ app.post("/send/v4", async (req, res) => {
             return res.status(400).send("Session has reached max attempts")
         }
 
-        const isRegistered = await getIsRegistered(number)
+        const isRegistered = await getIsRegisteredWithinLast11Months(number)
 
         if (isRegistered) {
             console.log(`/send/v4: Number has been registered already. Number: ${number}. sessionId: ${sessionId}`)
