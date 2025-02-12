@@ -62,13 +62,20 @@ const auroraProvider = new ethers.providers.JsonRpcProvider(
 
 const ethereumCMCID = 1027;
 const avalancheCMCID = 5805;
-const fantomCMCID = 3513;
+// const fantomCMCID = 3513;
+const fantomCMCID = 32684; // Sonic
 
 const cmcSlugToID = {
   ethereum: ethereumCMCID,
   avalanche: avalancheCMCID,
   fantom: fantomCMCID,
 };
+
+const cmcIdToSlug = {
+  [ethereumCMCID]: "ethereum",
+  [avalancheCMCID]: "avalanche",
+  [fantomCMCID]: "fantom",
+}
 
 const ERROR_MESSAGES = {
   OTP_NOT_FOUND: 'OTP not found',
@@ -95,6 +102,7 @@ module.exports = {
   fantomCMCID,
   avalancheCMCID,
   cmcSlugToID,
+  cmcIdToSlug,
   ERROR_MESSAGES,
   payPalApiUrlBase,
 }

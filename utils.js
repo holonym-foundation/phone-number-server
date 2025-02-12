@@ -4,6 +4,7 @@ const {
   ethereumCMCID,
   fantomCMCID,
   avalancheCMCID,
+  cmcIdToSlug,
 } = require('./constants.js');
 
 function getDateAsInt(date) {
@@ -16,6 +17,23 @@ function getDateAsInt(date) {
     return time;
   }
 
+// --------------------- Coinmarketcap stuff ---------------------
+// TODO: Use redis instead. This is a temporary solution to avoid hitting
+// CMC's rate limit. key-value pair is { slug: { price: number, lastUpdatedAt: Date } }
+const cryptoPricesCache = {};
+
+function getPriceFromCache(slug) {
+  const now = new Date();
+  const cachedPrice = cryptoPricesCache[slug];
+  // If price was last updated less than 30 seconds ago, use cached price
+  if (cachedPrice && now - cachedPrice.lastUpdatedAt < 30 * 1000) {
+    return cachedPrice.price;
+  }
+}
+
+function setPriceInCache(slug, price) {
+  cryptoPricesCache[slug] = { price, lastUpdatedAt: new Date() };
+}
 
 function getLatestCryptoPrice(id) {
   return axios.get(
@@ -29,26 +47,40 @@ function getLatestCryptoPrice(id) {
   );
 }
 
+/**
+ * First, check the cache. If nothing in cache, query CMC, and update cache.
+ */
+async function getPriceFromCacheOrAPI(id) {
+  const slug = cmcIdToSlug[id];
+  const cachedPrice = getPriceFromCache(slug);
+  if (cachedPrice) {
+    return cachedPrice;
+  }
+  const resp = await getLatestCryptoPrice(id)
+  const price = resp?.data?.data?.[id]?.quote?.USD?.price;
+  setPriceInCache(slug, price);
+  return price;
+}
+
 async function usdToETH(usdAmount) {
-  const resp = await getLatestCryptoPrice(ethereumCMCID);
-  const ethPrice = resp?.data?.data?.[ethereumCMCID]?.quote?.USD?.price;
+  const ethPrice = await getPriceFromCacheOrAPI(ethereumCMCID)
   const ethAmount = usdAmount / ethPrice;
   return ethAmount;
 }
 
 async function usdToFTM(usdAmount) {
-  const resp = await getLatestCryptoPrice(fantomCMCID);
-  const fantomPrice = resp?.data?.data?.[fantomCMCID]?.quote?.USD?.price;
+  const fantomPrice = await getPriceFromCacheOrAPI(fantomCMCID)
   const ftmAmount = usdAmount / fantomPrice;
   return ftmAmount;
 }
 
 async function usdToAVAX(usdAmount) {
-  const resp = await getLatestCryptoPrice(avalancheCMCID);
-  const avalanchePrice = resp?.data?.data?.[avalancheCMCID]?.quote?.USD?.price;
+  const avalanchePrice = await getPriceFromCacheOrAPI(avalancheCMCID)
   const avaxAmount = usdAmount / avalanchePrice;
   return avaxAmount;
 }
+
+// --------------------- END: Coinmarketcap stuff ---------------------
 
 /**
  * @param {() => Promise<T>} fn 
