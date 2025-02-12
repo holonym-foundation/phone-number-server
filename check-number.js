@@ -67,7 +67,7 @@ app.post("/send/v4", async (req, res) => {
 
         const session = await getPhoneSessionById(sessionId)
 
-        if (!session) {
+        if (!session?.Item) {
             return res.status(400).send("Invalid sessionId")
         }
 
