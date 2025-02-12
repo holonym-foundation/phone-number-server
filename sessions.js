@@ -606,7 +606,7 @@ async function payment(req, res) {
 
     const validationResult = await validateTxForSessionPayment(session, chainId, txHash, 5);
     if (validationResult.error) {
-      console.log("Invalid transaction. Error:", validationResult.error);
+      console.log(`Invalid transaction (chainId==${chainId}, txHash==${txHash}). Error:`, validationResult.error);
       return res
         .status(validationResult.status)
         .json({ error: validationResult.error });
