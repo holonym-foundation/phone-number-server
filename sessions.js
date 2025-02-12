@@ -73,7 +73,7 @@ async function validateTxForSessionPayment(session, chainId, txHash, desiredAmou
   if (!tx) {
     return {
       status: 400,
-      error: "Could not find transaction with given txHash",
+      error: `Could not find transaction with txHash ${txHash} on chain ${chainId}`,
     };
   }
 
