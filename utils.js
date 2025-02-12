@@ -50,9 +50,36 @@ async function usdToAVAX(usdAmount) {
   return avaxAmount;
 }
 
+/**
+ * @param {() => Promise<T>} fn 
+ * @param {number} retries 
+ * @param {number} delay 
+ */
+async function retry(
+  fn,
+  retries,
+  delay
+) {
+  try {
+    return await fn()
+  } catch (err) {
+    if (retries === 0) {
+      throw err
+    }
+
+    console.error(err)
+
+    // console.log(`Retrying... Attempts left: ${retries}`)
+    await new Promise((resolve) => setTimeout(resolve, delay))
+
+    return await retry(fn, retries - 1, delay)
+  }
+}
+
 module.exports = { 
   getDateAsInt : getDateAsInt,
   usdToETH,
   usdToFTM,
   usdToAVAX,
+  retry,
 }

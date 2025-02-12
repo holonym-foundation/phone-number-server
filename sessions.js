@@ -33,11 +33,31 @@ const {
   getRefundDetails: getPayPalRefundDetails,
   capturePayPalOrder
 } = require('./paypal.js');
-const { usdToETH, usdToFTM, usdToAVAX } = require('./utils.js');
+const { usdToETH, usdToFTM, usdToAVAX, retry } = require('./utils.js');
 
 const redis = createClient();
 redis.on('error', err => console.log('Redis Client Error', err));
 redis.connect();
+
+function getTransaction(chainId, txHash) {
+  if (chainId === 1) {
+    return ethereumProvider.getTransaction(txHash);
+  } else if (chainId === 10) {
+    return optimismProvider.getTransaction(txHash);
+  } else if (chainId === 250) {
+    return fantomProvider.getTransaction(txHash);
+  } else if (chainId === 8453) {
+    return baseProvider.getTransaction(txHash);
+  } else if (chainId === 43114) {
+    return avalancheProvider.getTransaction(txHash);
+  } else if (chainId === 1313161554) {
+    return auroraProvider.getTransaction(txHash);
+  } else if (process.env.NODE_ENV === "development" && chainId === 420) {
+    return optimismGoerliProvider.getTransaction(txHash);
+  } else {
+    throw new Error(`Unsupported chainId: ${chainId}`);
+  }
+}
 
 /**
  * Check blockchain for tx.
@@ -46,22 +66,9 @@ redis.connect();
  * - Ensure tx is confirmed.
  */
 async function validateTxForSessionPayment(session, chainId, txHash, desiredAmount) {
-  let tx;
-  if (chainId === 1) {
-    tx = await ethereumProvider.getTransaction(txHash);
-  } else if (chainId === 10) {
-    tx = await optimismProvider.getTransaction(txHash);
-  } else if (chainId === 250) {
-    tx = await fantomProvider.getTransaction(txHash);
-  } else if (chainId === 8453) {
-    tx = await baseProvider.getTransaction(txHash);
-  } else if (chainId === 43114) {
-    tx = await avalancheProvider.getTransaction(txHash);
-  } else if (chainId === 1313161554) {
-    tx = await auroraProvider.getTransaction(txHash);
-  } else if (process.env.NODE_ENV === "development" && chainId === 420) {
-    tx = await optimismGoerliProvider.getTransaction(txHash);
-  }
+  // Transactions on L2s mostly go through within a few seconds. Mainnet can take 15s or
+  // possibly even longer.
+  const tx = await retry(() => getTransaction(chainId, txHash), 5, 5000);
 
   if (!tx) {
     return {
