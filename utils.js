@@ -67,7 +67,7 @@ async function retry(
       throw err
     }
 
-    console.error(err)
+    console.log('retry encountered error "', err.message, '" retries left:', retries)
 
     // console.log(`Retrying... Attempts left: ${retries}`)
     await new Promise((resolve) => setTimeout(resolve, delay))
