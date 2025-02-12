@@ -120,12 +120,14 @@ async function validateTxForSessionPayment(session, chainId, txHash, desiredAmou
   }
 
   if (!tx.blockHash || tx.confirmations === 0) {
-    console.log('transaction has not been confirmed yet. tx:', tx)
-    // TODO: Uncomment
-    // return {
-    //   status: 400,
-    //   error: "Transaction has not been confirmed yet.",
-    // };
+    console.log('transaction has not been confirmed yet. waiting. tx:', tx)
+    const receipt = await tx.wait();
+    if (receipt.confirmations === 0) {
+      return {
+        status: 400,
+        error: "Transaction has not been confirmed yet.",
+      };
+    }
   }
 
   const sessionWithTxHash = await getPhoneSessionByTxHash(txHash)
