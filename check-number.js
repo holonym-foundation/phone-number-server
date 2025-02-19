@@ -43,12 +43,11 @@ app.use(express.json({ limit: "5mb" }));
 const port = 3030;
 const MAX_FRAUD_SCORE = 75; // ipqualityscore.com defines fraud score. This constant will be used to only allow phone numbers with a <= fraud score.
 
-const PRIVKEY = process.env[`${
-    (
-        (process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) && 
+const PRIVKEY = process.env[`${(
+        (process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) &&
         (process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING === "true")
     ) ? "TESTING" : "PRODUCTION"
-}_PRIVKEY`];
+    }_PRIVKEY`];
 
 const ADDRESS = getAddress(PRIVKEY);
 
@@ -168,8 +167,8 @@ function getIsRegisteredWithinLast11Months(phoneNumber) {
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
 app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res) => {
-    req.setTimeout(10000); 
-    console.log("getCredentials v4 was called for number", req.params.number)    
+    req.setTimeout(10000);
+    console.log("getCredentials v4 was called for number", req.params.number)
 
     try {
         const session = await getPhoneSessionById(req.params.sessionId)
@@ -210,7 +209,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
 
         if (isRegistered) {
             console.log(`Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`)
-            
+
             await updatePhoneSession(
                 req.params.sessionId,
                 null,
@@ -222,7 +221,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
                 null,
                 "Number has been registered already"
             )
-            
+
             return res.status(400).send("Number has been registered already!")
         }
 
@@ -248,7 +247,7 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
             null,
             null
         )
-        
+
         // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
         if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
             addNumber(req.params.number);
@@ -293,14 +292,14 @@ app.get("/getCredentials/v4/:number/:code/:country/:sessionId", async (req, res)
  * Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
  */
 app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async (req, res) => {
-    req.setTimeout(10000); 
-    console.log("getCredentials v5 was called for number", req.params.number)    
+    req.setTimeout(10000);
+    console.log("getCredentials v5 was called for number", req.params.number)
 
     const issuanceNullifier = req.params.nullifier;
 
+    const session = await getPhoneSessionById(req.params.sessionId)
+    
     try {
-        const session = await getPhoneSessionById(req.params.sessionId)
-
         if (!session) {
             return res.status(400).send("Invalid sessionId")
         }
@@ -342,7 +341,7 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
 
         if (isRegistered) {
             console.log(`Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`)
-            
+
             await updatePhoneSession(
                 req.params.sessionId,
                 null,
@@ -354,7 +353,7 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
                 null,
                 "Number has been registered already"
             )
-            
+
             return res.status(400).send("Number has been registered already!")
         }
 
@@ -379,7 +378,7 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
             null,
             null
         )
-        
+
         // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
         if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
             addNumber(req.params.number);
@@ -388,6 +387,21 @@ app.get("/getCredentials/v5/:number/:code/:country/:sessionId/:nullifier", async
         return res.send(creds);
     } catch (err) {
         console.log(`getCredentials v5: error for session ${req.params.sessionId}`, err)
+
+        // maxAttemptsPerSession has been reached and verification is still not successful
+        if (Number(session.Item.numAttempts.N) === maxAttemptsPerSession && err.message === ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
+            await updatePhoneSession(
+                req.params.sessionId,
+                null,
+                sessionStatusEnum.VERIFICATION_FAILED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Session has reached max attempts"
+            )
+        }
 
         // We do not set session status to VERIFICATION_FAILED if the error was simply
         // due to rate limiting requests from the user's country or if user inputted incorrect
@@ -431,7 +445,7 @@ function getCountryFromPhoneNumber(phoneNumber) {
         const countryCode = parsedPhoneNumber.country;
 
         return countryCode;
-    } catch(err) {
+    } catch (err) {
         console.error('Error parsing phone number:', err);
         next(err.message)
     }
@@ -445,7 +459,7 @@ function getCountryFromPhoneNumber(phoneNumber) {
 //                 .verifications
 //                 .create({to: req.params.number, channel: "sms"})
 //                 .then(() => {res.status(200);return;});
-                
+
 // })
 
 // Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
@@ -469,13 +483,13 @@ function getCountryFromPhoneNumber(phoneNumber) {
 //     req.setTimeout(10000); 
 //     console.log("getCredentials v3 was called for number",req.params.number)
 //     let result = false;
-    
+
 //     try { 
 //         result = await verify(req.params.number, req.params.code)
 //         if(result) {
 //             registerAndGetCredentialsIfSafe("doesnt_matter", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return})
 //         }
-        
+
 //     } catch (err) {
 //         console.log('getCredentials v3: error', err)
 //         next(err.message)
@@ -487,7 +501,7 @@ app.use(function (err, req, res, next) {
     console.log("error: ", err);
     res.status(err.status || 500).send(err);
     return;
-  });
+});
 
 /* Functions */
 
@@ -514,27 +528,27 @@ function registerAndGetCredentialsIfSafe(version, phoneNumber, country, next, ca
         console.error("error", error)
         next(error);
     }
-    
+
 }
 
 function registerIfSafe(phoneNumber, country, next, callback) {
     try {
         assert(phoneNumber && country);
         axios.get(`https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`)
-        .then((response) => {
-            if(!("fraud_score" in response?.data)) {next(`Invalid response: ${JSON.stringify(response)} `)}
-            numberExists(phoneNumber, (err, result) => {
-                console.log("is registered", result);
-                if(result && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {next("Number has been registered already!"); return}
-                // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
-                if(!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING){
-                    addNumber(phoneNumber);
-                }
-                callback(response.data.fraud_score <= MAX_FRAUD_SCORE);
-            })  
-        })
-    } catch(err) { next(err) }
-    
+            .then((response) => {
+                if (!("fraud_score" in response?.data)) { next(`Invalid response: ${JSON.stringify(response)} `) }
+                numberExists(phoneNumber, (err, result) => {
+                    console.log("is registered", result);
+                    if (result && !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) { next("Number has been registered already!"); return }
+                    // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
+                    if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
+                        addNumber(phoneNumber);
+                    }
+                    callback(response.data.fraud_score <= MAX_FRAUD_SCORE);
+                })
+            })
+    } catch (err) { next(err) }
+
 }
 
 app.use("/sessions", sessionsRouter);
