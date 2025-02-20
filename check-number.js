@@ -243,7 +243,7 @@ app.get(
         console.error(`Invalid response: ${JSON.stringify(response)}`);
         return res
           .status(500)
-          .send(`Received invalid response from ipqualityscore`);
+          .send({ error: `Received invalid response from ipqualityscore` });
       }
 
       const isRegistered = await getIsRegistered(req.params.number);
@@ -355,6 +355,8 @@ app.get(
     console.log("getCredentials v5 was called for number", req.params.number);
 
     const issuanceNullifier = req.params.nullifier;
+
+    const session = await getPhoneSessionById(req.params.sessionId);
 
     try {
       const session = await getPhoneSessionById(req.params.sessionId);
