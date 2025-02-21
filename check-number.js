@@ -356,8 +356,6 @@ app.get(
 
     const issuanceNullifier = req.params.nullifier;
 
-    const session = await getPhoneSessionById(req.params.sessionId);
-
     try {
       const session = await getPhoneSessionById(req.params.sessionId);
 
