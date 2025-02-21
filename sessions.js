@@ -452,7 +452,8 @@ async function postSession(req, res) {
       return res.status(400).json({ error: "sigDigest is required" });
     }
 
-    const id = randomBytes(32).toString('hex')
+    // We added timestamp to id on Feb 21, 2025
+    const id = new Date().getTime().toString() + '-' + randomBytes(32).toString('hex')
     await putPhoneSession(
       id,
       sigDigest,
