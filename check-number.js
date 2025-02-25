@@ -17,6 +17,7 @@ const {
   putNullifierAndCreds,
   getNullifierAndCredsByNullifier
 } = require("./dynamodb.js");
+const { failPhoneSession, setPhoneSessionIssued } = require('./sessions-utils.js')
 const { timestampIsWithinLast5Days } = require("./utils.js");
 const { begin, verify } = require("./otp.js");
 const { sessionsRouter } = require("./sessions.js");
@@ -94,17 +95,7 @@ app.post("/send/v4", async (req, res) => {
     }
 
     if (session.Item.numAttempts.N >= maxAttemptsPerSession) {
-      await updatePhoneSession(
-        sessionId,
-        null,
-        sessionStatusEnum.VERIFICATION_FAILED,
-        null,
-        null,
-        null,
-        null,
-        null,
-        "Session has reached max attempts"
-      );
+      await failPhoneSession(sessionId, "Session has reached max attempts")
       return res.status(400).send("Session has reached max attempts");
     }
 
@@ -256,17 +247,10 @@ app.get(
       const result = await verify(req.params.number, req.params.code);
 
       if (!result) {
-        await updatePhoneSession(
+        await failPhoneSession(
           req.params.sessionId,
-          null,
-          sessionStatusEnum.VERIFICATION_FAILED,
-          null,
-          null,
-          null,
-          null,
-          null,
           "Could not verify number with given code"
-        );
+        )
 
         return res
           .status(400)
@@ -290,17 +274,10 @@ app.get(
           `Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`
         );
 
-        await updatePhoneSession(
+        await failPhoneSession(
           req.params.sessionId,
-          null,
-          sessionStatusEnum.VERIFICATION_FAILED,
-          null,
-          null,
-          null,
-          null,
-          null,
           "Number has been registered already"
-        );
+        )
 
         return res
           .status(400)
@@ -322,17 +299,7 @@ app.get(
         credsFromNumber(req.params.number).then(resolve).catch(reject);
       });
 
-      await updatePhoneSession(
-        req.params.sessionId,
-        null,
-        sessionStatusEnum.ISSUED,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      );
+      await setPhoneSessionIssued(req.params.sessionId);
 
       // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
       if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
@@ -350,17 +317,7 @@ app.get(
       // due to rate limiting requests from the user's country or if user inputted incorrect
       // OTP.
       if (err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
-        await updatePhoneSession(
-          req.params.sessionId,
-          null,
-          sessionStatusEnum.VERIFICATION_FAILED,
-          null,
-          null,
-          null,
-          null,
-          null,
-          err.message
-        );
+        await failPhoneSession(req.params.sessionId, err.message)
       }
 
       if (err.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
@@ -420,17 +377,10 @@ app.get(
       const result = await verify(req.params.number, req.params.code);
 
       if (!result) {
-        await updatePhoneSession(
+        await failPhoneSession(
           req.params.sessionId,
-          null,
-          sessionStatusEnum.VERIFICATION_FAILED,
-          null,
-          null,
-          null,
-          null,
-          null,
           "Could not verify number with given code"
-        );
+        )
 
         return res
           .status(400)
@@ -456,17 +406,10 @@ app.get(
           `Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`
         );
 
-        await updatePhoneSession(
+        await failPhoneSession(
           req.params.sessionId,
-          null,
-          sessionStatusEnum.VERIFICATION_FAILED,
-          null,
-          null,
-          null,
-          null,
-          null,
           "Number has been registered already"
-        );
+        )
 
         return res.status(400).send({
           error: "Number has been registered already!",
@@ -489,17 +432,7 @@ app.get(
         issuev2(PRIVKEY, issuanceNullifier, phoneNumber, "0")
       );
 
-      await updatePhoneSession(
-        req.params.sessionId,
-        null,
-        sessionStatusEnum.ISSUED,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      );
+      await setPhoneSessionIssued(req.params.sessionId);
 
       // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
       if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
@@ -517,17 +450,10 @@ app.get(
       // due to rate limiting requests from the user's country or if user inputted incorrect
       // OTP.
       if (err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
-        await updatePhoneSession(
+        await failPhoneSession(
           req.params.sessionId,
-          null,
-          sessionStatusEnum.VERIFICATION_FAILED,
-          null,
-          null,
-          null,
-          null,
-          null,
           err.message
-        );
+        )
       }
 
       if (err.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
@@ -598,17 +524,10 @@ app.get(
             `Number has been registered already. Number: ${phoneByNullifier}. sessionId: ${req.params.sessionId}`
           );
   
-          await updatePhoneSession(
+          await failPhoneSession(
             req.params.sessionId,
-            null,
-            sessionStatusEnum.VERIFICATION_FAILED,
-            null,
-            null,
-            null,
-            null,
-            null,
             "Number has been registered already"
-          );
+          )
   
           return res.status(400).send({
             error: "Number has been registered already!",
@@ -622,17 +541,7 @@ app.get(
           issuev2(PRIVKEY, issuanceNullifier, phoneNumber, "0")
         );
 
-        await updatePhoneSession(
-          req.params.sessionId,
-          null,
-          sessionStatusEnum.ISSUED,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        );
+        await setPhoneSessionIssued(req.params.sessionId);  
 
         if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
           addNumber(phoneByNullifier);
@@ -650,17 +559,10 @@ app.get(
       const result = await verify(req.params.number, req.params.code);
 
       if (!result) {
-        await updatePhoneSession(
+        await failPhoneSession(
           req.params.sessionId,
-          null,
-          sessionStatusEnum.VERIFICATION_FAILED,
-          null,
-          null,
-          null,
-          null,
-          null,
           "Could not verify number with given code"
-        );
+        )
 
         return res
           .status(400)
@@ -686,17 +588,10 @@ app.get(
           `Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`
         );
 
-        await updatePhoneSession(
+        await failPhoneSession(
           req.params.sessionId,
-          null,
-          sessionStatusEnum.VERIFICATION_FAILED,
-          null,
-          null,
-          null,
-          null,
-          null,
           "Number has been registered already"
-        );
+        )
 
         return res.status(400).send({
           error: "Number has been registered already!",
@@ -719,17 +614,7 @@ app.get(
         issuev2(PRIVKEY, issuanceNullifier, phoneNumber, "0")
       );
 
-      await updatePhoneSession(
-        req.params.sessionId,
-        null,
-        sessionStatusEnum.ISSUED,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      );
+      await setPhoneSessionIssued(req.params.sessionId);
 
       // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
       if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
@@ -749,17 +634,10 @@ app.get(
       // due to rate limiting requests from the user's country or if user inputted incorrect
       // OTP.
       if (err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
-        await updatePhoneSession(
+        await failPhoneSession(
           req.params.sessionId,
-          null,
-          sessionStatusEnum.VERIFICATION_FAILED,
-          null,
-          null,
-          null,
-          null,
-          null,
           err.message
-        );
+        )
       }
 
       if (err.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
