@@ -108,10 +108,20 @@ async function retry(
   }
 }
 
+/**
+ * @param {number | undefined} timestamp 
+ */
+function timestampIsWithinLast5Days(timestamp) {
+  if (!timestamp) return false
+  const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+  return timestamp >= fiveDaysAgo;
+}
+
 module.exports = { 
   getDateAsInt : getDateAsInt,
   usdToETH,
   usdToFTM,
   usdToAVAX,
   retry,
+  timestampIsWithinLast5Days,
 }

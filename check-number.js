@@ -14,7 +14,10 @@ const {
   putPhoneSession,
   updatePhoneSession,
   getPhoneSessionById,
+  putNullifierAndCreds,
+  getNullifierAndCredsByNullifier
 } = require("./dynamodb.js");
+const { timestampIsWithinLast5Days } = require("./utils.js");
 const { begin, verify } = require("./otp.js");
 const { sessionsRouter } = require("./sessions.js");
 const { adminRouter } = require("./admin.js");
@@ -184,6 +187,40 @@ function getIsRegisteredWithinLast11Months(phoneNumber) {
 
         // If the number was inserted within the last 11 months, it is considered registered
         if (now - insertedAt < 1000 * 60 * 60 * 24 * 30 * 11) {
+          resolve(true);
+          return;
+        } else {
+          resolve(false);
+          return;
+        }
+      }
+      resolve(false);
+    });
+  });
+}
+
+function getIsRegisteredWithinLast11MonthsAndNotLast5Days(phoneNumber) {
+  return new Promise((resolve, reject) => {
+    getNumber(phoneNumber, (err, result) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      if (
+        result?.Item?.insertedAt &&
+        !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING
+      ) {
+        const now = new Date();
+        const insertedAt = new Date(parseInt(result.Item.insertedAt.N));
+
+        console.log('insertedAt', insertedAt)
+
+        const insertedWithinLast11Months = now - insertedAt < 1000 * 60 * 60 * 24 * 30 * 11
+        const insertedOver5DaysAgo = now - insertedAt > 1000 * 60 * 60 * 24 * 5
+        if (
+          insertedWithinLast11Months && insertedOver5DaysAgo
+        ) {
           resolve(true);
           return;
         } else {
@@ -473,6 +510,238 @@ app.get(
     } catch (err) {
       console.log(
         `getCredentials v5: error for session ${req.params.sessionId}`,
+        err
+      );
+
+      // We do not set session status to VERIFICATION_FAILED if the error was simply
+      // due to rate limiting requests from the user's country or if user inputted incorrect
+      // OTP.
+      if (err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
+        await updatePhoneSession(
+          req.params.sessionId,
+          null,
+          sessionStatusEnum.VERIFICATION_FAILED,
+          null,
+          null,
+          null,
+          null,
+          null,
+          err.message
+        );
+      }
+
+      if (err.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
+        return res.status(400).send({ error: ERROR_MESSAGES.OTP_NOT_FOUND });
+      }
+      if (err.message === ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
+        return res
+          .status(400)
+          .send({ error: ERROR_MESSAGES.OTP_DOES_NOT_MATCH });
+      }
+
+      res.status(500).send({
+        error: `An unknown error occurred. Could not verify number with given code. sessionId: ${req.params.sessionId}`,
+      });
+    }
+  }
+);
+
+/**
+ * v6 is similar to v5, except it allows a user to get their signed credentials again
+ * up to 5 days after initial issuance if they provide the same nullifier
+ */
+app.get(
+  "/getCredentials/v6/:number/:code/:country/:sessionId/:nullifier",
+  async (req, res) => {
+    req.setTimeout(10000);
+    console.log("getCredentials v6 was called for number", req.params.number);
+
+    const issuanceNullifier = req.params.nullifier;
+
+    try {
+      const _number = BigInt(issuanceNullifier)
+    } catch (err) {
+      return res.status(400).json({
+        error: `Invalid issuance nullifier (${issuanceNullifier}). It must be a number`
+      });
+    }
+
+    try {
+      const session = await getPhoneSessionById(req.params.sessionId);
+
+      if (!session) {
+        return res.status(400).send("Invalid sessionId");
+      }
+
+      if (
+        session.Item.sessionStatus.S === sessionStatusEnum.VERIFICATION_FAILED
+      ) {
+        return res.status(400).send({
+          error: `Session status is ${
+            session.Item.sessionStatus.S
+          }. Expected ${sessionStatusEnum.IN_PROGRESS}. Failure reason: ${
+            session.Item?.failureReason?.S ?? "Unknown"
+          }`,
+        });
+      }
+
+      // First, check if the user is looking up their credentials using their nullifier
+      const phoneByNullifierResult = await getNullifierAndCredsByNullifier(issuanceNullifier)
+      const phoneByNullifier = phoneByNullifierResult?.Item?.phoneNumber?.S
+      const createdAt = phoneByNullifierResult?.Item?.createdAt?.N
+      if (phoneByNullifier && timestampIsWithinLast5Days(createdAt)) {
+        console.log('getCredentials/v6: Got phone number from nullifier lookup')
+        const isRegistered = await getIsRegisteredWithinLast11MonthsAndNotLast5Days(phoneByNullifier)
+      
+        if (isRegistered) {
+          console.log(
+            `Number has been registered already. Number: ${phoneByNullifier}. sessionId: ${req.params.sessionId}`
+          );
+  
+          await updatePhoneSession(
+            req.params.sessionId,
+            null,
+            sessionStatusEnum.VERIFICATION_FAILED,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "Number has been registered already"
+          );
+  
+          return res.status(400).send({
+            error: "Number has been registered already!",
+          });
+        }
+
+        // Note that we don't need to validate the phone number again.
+
+        const phoneNumber = phoneByNullifier.replace("+", "");
+        const creds = JSON.parse(
+          issuev2(PRIVKEY, issuanceNullifier, phoneNumber, "0")
+        );
+
+        await updatePhoneSession(
+          req.params.sessionId,
+          null,
+          sessionStatusEnum.ISSUED,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        );
+
+        if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
+          addNumber(phoneByNullifier);
+        }
+
+        return res.send(creds);
+      }
+
+      if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
+        return res.status(400).send({
+          error: `Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`,
+        });
+      }
+
+      const result = await verify(req.params.number, req.params.code);
+
+      if (!result) {
+        await updatePhoneSession(
+          req.params.sessionId,
+          null,
+          sessionStatusEnum.VERIFICATION_FAILED,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Could not verify number with given code"
+        );
+
+        return res
+          .status(400)
+          .send({ error: "Could not verify number with given code" });
+      }
+
+      const response = await axios.get(
+        `https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${req.params.number}?country[]=${req.params.country}`
+      );
+      if (!("fraud_score" in response?.data)) {
+        console.error(`Invalid response: ${JSON.stringify(response)}`);
+        return res
+          .status(500)
+          .send({ error: "Received invalid response from ipqualityscore" });
+      }
+
+      const isRegistered = await getIsRegisteredWithinLast11Months(
+        req.params.number
+      );
+
+      if (isRegistered) {
+        console.log(
+          `Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`
+        );
+
+        await updatePhoneSession(
+          req.params.sessionId,
+          null,
+          sessionStatusEnum.VERIFICATION_FAILED,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Number has been registered already"
+        );
+
+        return res.status(400).send({
+          error: "Number has been registered already!",
+        });
+      }
+
+      const isSafe = response.data.fraud_score <= MAX_FRAUD_SCORE;
+
+      if (!isSafe) {
+        console.log(
+          `Phone number ${req.params.number} could not be determined to belong to a unique human`
+        );
+        return res.status(400).send({
+          error: `Phone number could not be determined to belong to a unique human. sessionId: ${req.params.sessionId}`,
+        });
+      }
+
+      const phoneNumber = req.params.number.replace("+", "");
+      const creds = JSON.parse(
+        issuev2(PRIVKEY, issuanceNullifier, phoneNumber, "0")
+      );
+
+      await updatePhoneSession(
+        req.params.sessionId,
+        null,
+        sessionStatusEnum.ISSUED,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      );
+
+      // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
+      if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
+        addNumber(req.params.number);
+      }
+
+      await putNullifierAndCreds(issuanceNullifier, req.params.number);
+
+      return res.send(creds);
+    } catch (err) {
+      console.log(
+        `getCredentials v6: error for session ${req.params.sessionId}`,
         err
       );
 

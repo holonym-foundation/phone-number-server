@@ -25,6 +25,13 @@ var ddb = new AWS.DynamoDB({apiVersion: '2012-08-10'});
  * @property {string | undefined} payPal JSON stringified PhoneSessionPayPalData
  */
 
+/**
+ * @typedef NullifierAndCreds
+ * @property {string} issuanceNullifier
+ * @property {string} phoneNumber
+ * @property {number} createdAt - Unix timestamp
+ */
+
 // Helper function to get a phone number from the db
 const getNumberParams = (value) => ({
     TableName: 'phone-numbers',
@@ -251,6 +258,27 @@ const getVoucherByTxHash = async (txHash) => {
     console.log('sessions tx hash', vouchers)
     return vouchers?.Items?.[0];
 }
+
+const putNullifierAndCreds = (issuanceNullifier, phoneNumber) => {
+    const params = {
+        TableName: 'phone-nullifier-and-creds',
+        Item: {
+            'issuanceNullifier': { S: `${issuanceNullifier}` },
+            'phoneNumber': { S: `${phoneNumber}` },
+            'createdAt': { N: `${Date.now().toString()}` }
+        }
+    }
+    return ddb.putItem(params).promise()
+}
+
+const getNullifierAndCredsByNullifier = (issuanceNullifier) => {
+    const params = {
+        TableName: 'phone-nullifier-and-creds',
+        Key: { 'issuanceNullifier': { S: `${issuanceNullifier}` } }
+    }
+    return ddb.getItem(params).promise()
+}
+
 // Usage: 
 // addNumber('+1234567890')
 // numberExists('+1234567890', (x)=>console.log('this should now be true', x))
@@ -269,5 +297,7 @@ module.exports = {
     batchPutVouchers,
     getVoucherById,
     updateVoucher,
+    putNullifierAndCreds,
+    getNullifierAndCredsByNullifier
 }
 
