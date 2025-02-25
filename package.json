@@ -31,6 +31,7 @@
     "holonym-wasm-issuer-v2": "npm:holonym-wasm-issuer@^2.0.0",
     "libphonenumber-js": "^1.10.44",
     "messente_api": "^1.5.0",
+    "mongodb": "^6.13.1",
     "mysql": "^2.18.1",
     "redis": "^4.6.8",
     "secp256k1": "^4.0.4",

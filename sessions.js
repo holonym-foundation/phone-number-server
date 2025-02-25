@@ -3,6 +3,7 @@ const express = require("express");
 const axios = require('axios');
 const { createClient } = require('redis');
 const { ethers } = require('ethers');
+const { ObjectId } = require('mongodb');
 const {
   putPhoneSession,
   updatePhoneSession,
@@ -452,8 +453,8 @@ async function postSession(req, res) {
       return res.status(400).json({ error: "sigDigest is required" });
     }
 
-    // We added timestamp to id on Feb 21, 2025
-    const id = new Date().getTime().toString() + '-' + randomBytes(32).toString('hex')
+    // We started using ObjectId on Feb 25, 2025
+    const id = new ObjectId().toString()
     await putPhoneSession(
       id,
       sigDigest,
