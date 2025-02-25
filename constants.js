@@ -1,4 +1,5 @@
 const { ethers } = require('ethers');
+require('dotenv').config();
 
 const sessionStatusEnum = {
   NEEDS_PAYMENT: "NEEDS_PAYMENT",
