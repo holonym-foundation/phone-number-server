@@ -129,7 +129,7 @@ async function failSession(req, res) {
 
 const deletionRateLimit = {
   windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: 10,
+  max: 100,
   current: 0,
   lastReset: Date.now(),
 }
