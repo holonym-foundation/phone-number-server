@@ -272,7 +272,7 @@ async function refundMintFeeOnChain(session, to) {
 
   // Refund 69.1% of the transaction amount. This approximates the mint cost to
   // a fraction of a cent.
-  const refundAmount = tx.value.mul(691).div(1000);
+  const refundAmount = tx.value; // .mul(691).div(1000);
 
   // Ensure wallet has enough funds to refund
   const balance = await wallet.getBalance();
