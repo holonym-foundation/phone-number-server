@@ -102,7 +102,7 @@ async function failSession(req, res) {
       session.Item.sessionStatus.S !== sessionStatusEnum.ISSUED
     ) {
       return res.status(400).json({ 
-        error: `Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`
+        error: `Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS} or ${sessionStatusEnum.ISSUED}.`
       });
     }
 
