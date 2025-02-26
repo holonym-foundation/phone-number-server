@@ -1,4 +1,5 @@
 const { updatePhoneSession } = require("./dynamodb.js");
+const { sessionStatusEnum } = require("./constants.js");
 
 async function failPhoneSession(sessionId, failureReason) {
   await updatePhoneSession(
