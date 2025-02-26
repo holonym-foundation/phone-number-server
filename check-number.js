@@ -483,6 +483,7 @@ app.get(
     console.log("getCredentials v6 was called for number", req.params.number);
 
     const issuanceNullifier = req.params.nullifier;
+    const sessionId = req.params.sessionId;
 
     try {
       const _number = BigInt(issuanceNullifier)
@@ -493,7 +494,7 @@ app.get(
     }
 
     try {
-      const session = await getPhoneSessionById(req.params.sessionId);
+      const session = await getPhoneSessionById(sessionId);
 
       if (!session) {
         return res.status(400).send("Invalid sessionId");
@@ -521,13 +522,10 @@ app.get(
       
         if (isRegistered) {
           console.log(
-            `Number has been registered already. Number: ${phoneByNullifier}. sessionId: ${req.params.sessionId}`
+            `Number has been registered already. Number: ${phoneByNullifier}. sessionId: ${sessionId}`
           );
   
-          await failPhoneSession(
-            req.params.sessionId,
-            "Number has been registered already"
-          )
+          await failPhoneSession(sessionId, "Number has been registered already")
   
           return res.status(400).send({
             error: "Number has been registered already!",
@@ -541,7 +539,7 @@ app.get(
           issuev2(PRIVKEY, issuanceNullifier, phoneNumber, "0")
         );
 
-        await setPhoneSessionIssued(req.params.sessionId);  
+        await setPhoneSessionIssued(sessionId);  
 
         if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
           addNumber(phoneByNullifier);
@@ -559,14 +557,27 @@ app.get(
       const result = await verify(req.params.number, req.params.code);
 
       if (!result) {
-        await failPhoneSession(
-          req.params.sessionId,
-          "Could not verify number with given code"
-        )
+        await failPhoneSession(sessionId, "Could not verify number with given code")
 
         return res
           .status(400)
           .send({ error: "Could not verify number with given code" });
+      }
+
+      const isRegistered = await getIsRegisteredWithinLast11Months(
+        req.params.number
+      );
+
+      if (isRegistered) {
+        console.log(
+          `Number has been registered already. Number: ${req.params.number}. sessionId: ${sessionId}`
+        );
+
+        await failPhoneSession(sessionId, "Number has been registered already")
+
+        return res.status(400).send({
+          error: "Number has been registered already!",
+        });
       }
 
       const response = await axios.get(
@@ -579,25 +590,6 @@ app.get(
           .send({ error: "Received invalid response from ipqualityscore" });
       }
 
-      const isRegistered = await getIsRegisteredWithinLast11Months(
-        req.params.number
-      );
-
-      if (isRegistered) {
-        console.log(
-          `Number has been registered already. Number: ${req.params.number}. sessionId: ${req.params.sessionId}`
-        );
-
-        await failPhoneSession(
-          req.params.sessionId,
-          "Number has been registered already"
-        )
-
-        return res.status(400).send({
-          error: "Number has been registered already!",
-        });
-      }
-
       const isSafe = response.data.fraud_score <= MAX_FRAUD_SCORE;
 
       if (!isSafe) {
@@ -605,7 +597,7 @@ app.get(
           `Phone number ${req.params.number} could not be determined to belong to a unique human`
         );
         return res.status(400).send({
-          error: `Phone number could not be determined to belong to a unique human. sessionId: ${req.params.sessionId}`,
+          error: `Phone number could not be determined to belong to a unique human. sessionId: ${sessionId}`,
         });
       }
 
@@ -614,7 +606,7 @@ app.get(
         issuev2(PRIVKEY, issuanceNullifier, phoneNumber, "0")
       );
 
-      await setPhoneSessionIssued(req.params.sessionId);
+      await setPhoneSessionIssued(sessionId);
 
       // Allow disabling of Sybil resistance for testing this script can be tested more than once ;)
       if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
@@ -625,19 +617,13 @@ app.get(
 
       return res.send(creds);
     } catch (err) {
-      console.log(
-        `getCredentials v6: error for session ${req.params.sessionId}`,
-        err
-      );
+      console.log(`getCredentials v6: error for session ${sessionId}`, err);
 
       // We do not set session status to VERIFICATION_FAILED if the error was simply
       // due to rate limiting requests from the user's country or if user inputted incorrect
       // OTP.
       if (err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
-        await failPhoneSession(
-          req.params.sessionId,
-          err.message
-        )
+        await failPhoneSession(sessionId, err.message)
       }
 
       if (err.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
