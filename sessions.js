@@ -478,6 +478,42 @@ async function postSession(req, res) {
   }
 }
 
+
+/**
+ * The same as v1 but immediately sets session status to IN_PROGRESS.
+ */
+async function postSessionV2(req, res) {
+  try {
+    const sigDigest = req.body.sigDigest;
+    if (!sigDigest) {
+      return res.status(400).json({ error: "sigDigest is required" });
+    }
+
+    // We started using ObjectId on Feb 25, 2025
+    const id = new ObjectId().toString()
+    await putPhoneSession(
+      id,
+      sigDigest,
+      sessionStatusEnum.IN_PROGRESS,
+      null,
+      null,
+      0,
+      null,
+      null
+    )
+
+    return res.status(201).json({
+      id,
+      sigDigest,
+      sessionStatus: sessionStatusEnum.IN_PROGRESS,
+      numAttempts: 0,
+    });
+  } catch (err) {
+    console.log("postSession: Error:", err.message);
+    return res.status(500).json({ error: "An unknown error occurred" });
+  }
+}
+
 /**
  * ENDPOINT.
  */
@@ -1125,6 +1161,7 @@ async function redeemVoucher(req, res) {
 const sessionsRouter = express.Router();
 
 sessionsRouter.post("/", postSession);
+sessionsRouter.post("/v2", postSessionV2);
 sessionsRouter.post("/:id/paypal-order", createPayPalOrder);
 sessionsRouter.post("/:id/payment", payment);
 sessionsRouter.post("/:id/payment/v2", paymentV2);
