@@ -489,6 +489,21 @@ async function postSessionV2(req, res) {
       return res.status(400).json({ error: "sigDigest is required" });
     }
 
+    // Only allow a user to create up to 2 sessions
+    const existingSessions = await getPhoneSessionsBySigDigest(sigDigest)
+    const sessions = existingSessions?.Items ? existingSessions.Items : []
+    const filteredSessions = sessions.filter((session) => 
+      [
+        sessionStatusEnum.IN_PROGRESS,
+        sessionStatusEnum.VERIFICATION_FAILED,
+        sessionStatusEnum.ISSUED
+      ].includes(session.sessionStatus.S)
+    )
+
+    if (filteredSessions.length >= 2) {
+      return res.status(400).json({ error: "User has reached the maximum number of sessions (2)" });
+    }
+
     // We started using ObjectId on Feb 25, 2025
     const id = new ObjectId().toString()
     await putPhoneSession(
