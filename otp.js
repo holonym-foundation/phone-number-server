@@ -16,7 +16,22 @@ basicAuth.username = process.env.MESSENTE_API_USERNAME;
 basicAuth.password = process.env.MESSENTE_API_PASSWORD;
 const api = new Messente.OmnimessageApi();
 
+const MAX_COUNTRY_ATTEMPTS_PER_MINUTE = 10;
+const MAX_COUNTRY_ATTEMPTS_PER_HOUR = 300;
+
 const getOTP = () => crypto.randomInt(0,1000000).toString().padStart(6,'0')
+
+const cacheRequestFromCountry = async (countryCode) => {
+    const minuteKey = `minute:${countryCode}`;
+    const hourKey = `hour:${countryCode}`;
+    const countMinute = await redis.hIncrBy('country_requests_minutes', minuteKey, 1);
+    const countHour = await redis.hIncrBy('country_requests_hours', hourKey, 1);
+    await redis.expire('country_requests_minutes', 60)
+    await redis.expire('country_requests_hours', 3600)
+    if (countMinute > MAX_COUNTRY_ATTEMPTS_PER_MINUTE || countHour > MAX_COUNTRY_ATTEMPTS_PER_HOUR) {
+        throw new Error(`${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY} ${countryCode}`) 
+    }
+}
 
 const cacheOTP = async (phoneNumber, otp) => {
     await redis.set(`OTP:${phoneNumber}`, otp, 'EX',OTP_EXPIRY)
@@ -56,6 +71,7 @@ const sendOTP = async (phoneNumber, otp) => {
 
 async function begin(phoneNumber, countryCode) {
     const otp = getOTP();
+    await cacheRequestFromCountry(countryCode)
     await cacheOTP(phoneNumber, otp);
     await sendOTP(phoneNumber, otp);
 }

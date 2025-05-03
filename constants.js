@@ -81,6 +81,7 @@ const cmcIdToSlug = {
 const ERROR_MESSAGES = {
   OTP_NOT_FOUND: 'OTP not found',
   OTP_DOES_NOT_MATCH: 'OTP does not match',
+  TOO_MANY_ATTEMPTS_COUNTRY: 'Too many recent attempts from country',
 }
 const payPalApiUrlBase =
   process.env.NODE_ENV === "production"

@@ -128,7 +128,9 @@ app.post("/send/v4", async (req, res) => {
 
     res.sendStatus(200);
   } catch (err) {
-    if (err.response) {
+    if (err.message.includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
+      return res.status(400).json({ error: err.message })
+    } else if (err.response) {
       console.error("Error sending code (1)", err.response.data);
       console.error("Error sending code (2)", err.response.status);
       console.error("Error sending code (3)", err.response.headers);
