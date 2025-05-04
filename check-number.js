@@ -17,6 +17,7 @@ const {
   putNullifierAndCreds,
   getNullifierAndCredsByNullifier
 } = require("./dynamodb.js");
+const { redis } = require('./redis.js');
 const { failPhoneSession, setPhoneSessionIssued } = require('./sessions-utils.js')
 const { timestampIsWithinLast5Days } = require("./utils.js");
 const { begin, verify } = require("./otp.js");
@@ -67,6 +68,8 @@ const PRIVKEY =
 
 const ADDRESS = getAddress(PRIVKEY);
 
+const MAX_SENDS_PER_30_DAYS = 20;
+
 // Sends a new code to number (E.164 format e.g. +13109273149)
 app.post("/send/v4", async (req, res) => {
   try {
@@ -107,6 +110,14 @@ app.post("/send/v4", async (req, res) => {
       );
 
       return res.status(400).send(`Number has been registered already!`);
+    }
+
+    // Rate limiting
+    const ip = req.headers['x-forwarded-for'] ?? req.socket.remoteAddress
+    const count = await redis.hIncrBy('NUM_SENDS_BY_IP', ip.toString(), 1);
+    await redis.expire('NUM_SENDS_BY_IP', 60 * 60 * 24 * 30)
+    if (count > MAX_SENDS_PER_30_DAYS) {
+      return res.status(429).json({ error: `${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_IP} ${ip}` })
     }
 
     console.log("sending to ", number);

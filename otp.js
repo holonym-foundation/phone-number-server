@@ -1,14 +1,10 @@
 require('dotenv').config();
-const { createClient } = require('redis');
 const crypto = require('crypto');
 const Messente = require('messente_api');
 const { ERROR_MESSAGES } = require('./constants.js');
+const { redis } = require('./redis.js');
 
 const OTP_EXPIRY = 60 * 5; // 5 minutes
-
-const redis = createClient();
-redis.on('error', err => console.log('Redis Client Error', err));
-redis.connect();
 
 const client = Messente.ApiClient.instance;
 const basicAuth = client.authentications['basicAuth'];
