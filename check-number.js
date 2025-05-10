@@ -801,11 +801,6 @@ function registerIfSafe(phoneNumber, country, next, callback) {
 app.use("/sessions", sessionsRouter);
 app.use("/admin", adminRouter);
 
-app.get("/testing", async (req, res) => {
-  const ip = req.headers['x-forwarded-for'] ?? req.socket.remoteAddress
-  res.status(200).json({ ip })
-})
-
 /* - */
 app.listen(port);
 // holonym twilio number: +18312329705
