@@ -114,10 +114,15 @@ app.post("/send/v4", async (req, res) => {
 
     // Rate limiting
     const ip = req.headers['x-forwarded-for'] ?? req.socket.remoteAddress
-    const count = await redis.hIncrBy('NUM_SENDS_BY_IP', ip.toString(), 1);
-    await redis.expire('NUM_SENDS_BY_IP', 60 * 60 * 24 * 30)
+    const key = `NUM_SENDS_BY_IP:${ip}`;
+    const count = await redis.incr(key);
+    const ttl = await redis.ttl(key);
+    // -2 means the key does not exist. -1 means the key is not set to expire.
+    if (ttl < 0) {
+      await redis.expire(key, 60 * 60 * 24 * 30);
+    }
     if (count > MAX_SENDS_PER_30_DAYS) {
-      return res.status(429).json({ error: `${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_IP} ${ip}` })
+      return res.status(429).json({ error: `${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_IP} ${ip}` });
     }
 
     console.log("sending to ", number);
@@ -795,6 +800,11 @@ function registerIfSafe(phoneNumber, country, next, callback) {
 
 app.use("/sessions", sessionsRouter);
 app.use("/admin", adminRouter);
+
+app.get("/testing", async (req, res) => {
+  const ip = req.headers['x-forwarded-for'] ?? req.socket.remoteAddress
+  res.status(200).json({ ip })
+})
 
 /* - */
 app.listen(port);

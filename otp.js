@@ -18,14 +18,23 @@ const MAX_COUNTRY_ATTEMPTS_PER_HOUR = 300;
 const getOTP = () => crypto.randomInt(0,1000000).toString().padStart(6,'0')
 
 const cacheRequestFromCountry = async (countryCode) => {
-    const minuteKey = `minute:${countryCode}`;
-    const hourKey = `hour:${countryCode}`;
-    const countMinute = await redis.hIncrBy('country_requests_minutes', minuteKey, 1);
-    const countHour = await redis.hIncrBy('country_requests_hours', hourKey, 1);
-    await redis.expire('country_requests_minutes', 60)
-    await redis.expire('country_requests_hours', 3600)
+    const minuteKey = `country_requests_minutes:minute:${countryCode}`;
+    const hourKey = `country_requests_minutes:hour:${countryCode}`;
+    const countMinute = await redis.incr(minuteKey);
+    const countHour = await redis.incr(hourKey);
+
+    const minuteTTL = await redis.ttl(minuteKey);
+    const hourTTL = await redis.ttl(hourKey);
+    // -2 means the key does not exist. -1 means the key is not set to expire.
+    if (minuteTTL < 0) {
+        await redis.expire(minuteKey, 60)
+    }
+    if (hourTTL < 0) {
+        await redis.expire(hourKey, 3600)
+    }
+    
     if (countMinute > MAX_COUNTRY_ATTEMPTS_PER_MINUTE || countHour > MAX_COUNTRY_ATTEMPTS_PER_HOUR) {
-        throw new Error(`${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY} ${countryCode}`) 
+      throw new Error(`${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY} ${countryCode}`)
     }
 }
 
