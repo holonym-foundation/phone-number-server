@@ -1173,6 +1173,29 @@ async function redeemVoucher(req, res) {
   }
 }
 
+async function isVoucherRedeemed(req, res) {
+  try {
+    const voucherId = req.body.voucherId;
+
+    if (!voucherId) {
+      return res.status(400).json({ error: "voucherId is required" });
+    }
+
+    const voucher = await getVoucherById(voucherId);
+    if (!voucher?.Item) {
+      return res.status(404).json({ error: "voucher is invalid" });
+    }
+    if (voucher.Item.isRedeemed.BOOL) {
+      return res.status(200).json({ isRedeemed: true });
+    } else {
+      return res.status(200).json({ isRedeemed: false });
+    }
+  } catch (err) {
+    console.log("isVoucherRedeemed: Error:", err.message);
+    return res.status(500).json({ error: "An unknown error occurred" });
+  }
+}
+
 const sessionsRouter = express.Router();
 
 sessionsRouter.post("/", postSession);
@@ -1184,6 +1207,7 @@ sessionsRouter.post("/:id/payment/v3", paymentV3);
 sessionsRouter.post("/:id/redeem-voucher", redeemVoucher);
 sessionsRouter.post("/:id/refund", refund);
 sessionsRouter.post("/:id/refund/v2", refundV2);
+sessionsRouter.post("/is-voucher-redeemed", isVoucherRedeemed);
 sessionsRouter.get("/", getSessions);
 sessionsRouter.get("/generate-voucher", generateVoucher);
 
