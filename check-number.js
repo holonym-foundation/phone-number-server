@@ -40,6 +40,7 @@ const app = express();
 app.use(
   cors({
     origin: [
+      "https://id.human.tech",
       "https://holonym.id",
       "https://www.holonym.id",
       "https://app.holonym.id",
