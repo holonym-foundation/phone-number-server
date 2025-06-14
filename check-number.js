@@ -643,6 +643,7 @@ app.get(
       // OTP.
       const acceptableErrors = [
         ERROR_MESSAGES.OTP_DOES_NOT_MATCH,
+        ERROR_MESSAGES.OTP_NOT_FOUND,
         ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY,
         ERROR_MESSAGES.TOO_MANY_ATTEMPTS_IP
       ]
