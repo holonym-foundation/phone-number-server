@@ -615,6 +615,7 @@ app.get(
         console.log(
           `Phone number ${req.params.number} could not be determined to belong to a unique human`
         );
+        await failPhoneSession(sessionId, `Phone number ${req.params.number} could not be determined to belong to a unique human`)
         return res.status(400).send({
           error: `Phone number could not be determined to belong to a unique human. sessionId: ${sessionId}`,
         });
