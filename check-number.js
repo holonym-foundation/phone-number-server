@@ -641,7 +641,12 @@ app.get(
       // We do not set session status to VERIFICATION_FAILED if the error was simply
       // due to rate limiting requests from the user's country or if user inputted incorrect
       // OTP.
-      if (err.message !== ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
+      const acceptableErrors = [
+        ERROR_MESSAGES.OTP_DOES_NOT_MATCH,
+        ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY,
+        ERROR_MESSAGES.TOO_MANY_ATTEMPTS_IP
+      ]
+      if (!acceptableErrors.includes(err.message)) {
         await failPhoneSession(sessionId, err.message)
       }
 
