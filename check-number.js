@@ -126,8 +126,31 @@ app.post("/send/v4", async (req, res) => {
       return res.status(429).json({ error: `${ERROR_MESSAGES.TOO_MANY_ATTEMPTS_IP} ${ip}` });
     }
 
-    console.log("sending to ", number);
     const countryCode = getCountryFromPhoneNumber(number);
+
+    const response = await axios.get(
+      `https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${number}?country[]=${countryCode}`
+    );
+    if (!("fraud_score" in response?.data)) {
+      console.error(`Invalid response: ${JSON.stringify(response)}`);
+      return res
+        .status(500)
+        .send({ error: "Received invalid response from ipqualityscore" });
+    }
+
+    const isSafe = response.data.fraud_score <= MAX_FRAUD_SCORE;
+
+    if (!isSafe) {
+      console.log(
+        `Phone number ${number} could not be determined to belong to a unique human`
+      );
+      await failPhoneSession(sessionId, `Phone number ${number} could not be determined to belong to a unique human`)
+      return res.status(400).send({
+        error: `Phone number could not be determined to belong to a unique human. sessionId: ${sessionId}`,
+      });
+    }
+
+    console.log("sending to ", number);
     await begin(number, countryCode);
 
     const attempts = Number(session.Item.numAttempts.N) + 1;
@@ -596,28 +619,6 @@ app.get(
 
         return res.status(400).send({
           error: "Number has been registered already!",
-        });
-      }
-
-      const response = await axios.get(
-        `https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${req.params.number}?country[]=${req.params.country}`
-      );
-      if (!("fraud_score" in response?.data)) {
-        console.error(`Invalid response: ${JSON.stringify(response)}`);
-        return res
-          .status(500)
-          .send({ error: "Received invalid response from ipqualityscore" });
-      }
-
-      const isSafe = response.data.fraud_score <= MAX_FRAUD_SCORE;
-
-      if (!isSafe) {
-        console.log(
-          `Phone number ${req.params.number} could not be determined to belong to a unique human`
-        );
-        await failPhoneSession(sessionId, `Phone number ${req.params.number} could not be determined to belong to a unique human`)
-        return res.status(400).send({
-          error: `Phone number could not be determined to belong to a unique human. sessionId: ${sessionId}`,
         });
       }
 
