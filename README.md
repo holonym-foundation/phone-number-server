@@ -35,3 +35,24 @@ Run the development server.
 ```bash
 npm run start
 ```
+
+## Contributing
+
+**Git practices**
+
+We use a style of Gitflow.
+
+- All changes should be pushed to the `dev` branch.
+- If a feature takes a while (e.g., weeks) to implement, prefer creating a feature branch. Once the feature is finished, rebase onto `dev`.
+- The `main` branch is protected. PRs to `main` can only be merged by authorized individuals. PRs to `main` are only merged from `dev`.
+
+**Linting and formatting**
+
+All commits must pass linting and formatting checks.
+
+Run these commands prior to each commit:
+
+```bash
+# pnpm lint-fix
+pnpm format-fix
+```
