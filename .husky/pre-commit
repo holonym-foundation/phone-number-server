@@ -1,0 +1,2 @@
+pnpm lint-check
+pnpm format-check

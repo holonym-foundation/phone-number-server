@@ -5,7 +5,11 @@
   "main": "check-number.js",
   "scripts": {
     "start": "node check-number.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint-fix": "echo \"Linting not implemented for phone-number-server\" && exit 0",
+    "lint-check": "echo \"Linting not implemented for phone-number-server\" && exit 0",
+    "format-fix": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format-check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "repository": {
     "type": "git",
@@ -36,5 +40,9 @@
     "redis": "^4.6.8",
     "secp256k1": "^4.0.4",
     "twilio": "^3.83.3"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "prettier": "^3.0.0"
   }
 }

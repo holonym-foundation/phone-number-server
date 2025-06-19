@@ -1,5 +1,5 @@
-const { updatePhoneSession } = require("./dynamodb.js");
-const { sessionStatusEnum } = require("./constants.js");
+const { updatePhoneSession } = require('./dynamodb.js')
+const { sessionStatusEnum } = require('./constants.js')
 
 async function failPhoneSession(sessionId, failureReason) {
   await updatePhoneSession(
@@ -12,7 +12,7 @@ async function failPhoneSession(sessionId, failureReason) {
     null,
     null,
     failureReason
-  );
+  )
 }
 
 async function setPhoneSessionIssued(sessionId) {
@@ -26,7 +26,7 @@ async function setPhoneSessionIssued(sessionId) {
     null,
     null,
     null
-  );
+  )
 }
 
 module.exports = {

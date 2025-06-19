@@ -1,9 +1,9 @@
-const { randomBytes } = require('crypto');
-const express = require("express");
-const axios = require('axios');
-const { createClient } = require('redis');
-const { ethers } = require('ethers');
-const { ObjectId } = require('mongodb');
+const { randomBytes } = require('crypto')
+const express = require('express')
+const axios = require('axios')
+const { createClient } = require('redis')
+const { ethers } = require('ethers')
+const { ObjectId } = require('mongodb')
 const {
   putPhoneSession,
   updatePhoneSession,
@@ -13,8 +13,8 @@ const {
   getVoucherByTxHash,
   getVoucherById,
   updateVoucher,
-  batchPutVouchers,
-} = require('./dynamodb.js');
+  batchPutVouchers
+} = require('./dynamodb.js')
 const {
   sessionStatusEnum,
   supportedChainIds,
@@ -26,37 +26,37 @@ const {
   fantomProvider,
   avalancheProvider,
   auroraProvider,
-  payPalApiUrlBase,
-} = require('./constants.js');
+  payPalApiUrlBase
+} = require('./constants.js')
 const {
   getAccessToken: getPayPalAccessToken,
   getOrder: getPayPalOrder,
   getRefundDetails: getPayPalRefundDetails,
   capturePayPalOrder
-} = require('./paypal.js');
-const { usdToETH, usdToFTM, usdToAVAX, retry } = require('./utils.js');
+} = require('./paypal.js')
+const { usdToETH, usdToFTM, usdToAVAX, retry } = require('./utils.js')
 
-const redis = createClient();
-redis.on('error', err => console.log('Redis Client Error', err));
-redis.connect();
+const redis = createClient()
+redis.on('error', (err) => console.log('Redis Client Error', err))
+redis.connect()
 
 function getTransaction(chainId, txHash) {
   if (chainId === 1) {
-    return ethereumProvider.getTransaction(txHash);
+    return ethereumProvider.getTransaction(txHash)
   } else if (chainId === 10) {
-    return optimismProvider.getTransaction(txHash);
+    return optimismProvider.getTransaction(txHash)
   } else if (chainId === 250) {
-    return fantomProvider.getTransaction(txHash);
+    return fantomProvider.getTransaction(txHash)
   } else if (chainId === 8453) {
-    return baseProvider.getTransaction(txHash);
+    return baseProvider.getTransaction(txHash)
   } else if (chainId === 43114) {
-    return avalancheProvider.getTransaction(txHash);
+    return avalancheProvider.getTransaction(txHash)
   } else if (chainId === 1313161554) {
-    return auroraProvider.getTransaction(txHash);
-  } else if (process.env.NODE_ENV === "development" && chainId === 420) {
-    return optimismGoerliProvider.getTransaction(txHash);
+    return auroraProvider.getTransaction(txHash)
+  } else if (process.env.NODE_ENV === 'development' && chainId === 420) {
+    return optimismGoerliProvider.getTransaction(txHash)
   } else {
-    throw new Error(`Unsupported chainId: ${chainId}`);
+    throw new Error(`Unsupported chainId: ${chainId}`)
   }
 }
 
@@ -66,68 +66,79 @@ function getTransaction(chainId, txHash) {
  * - Ensure amount is > desired amount.
  * - Ensure tx is confirmed.
  */
-async function validateTxForSessionPayment(session, chainId, txHash, desiredAmount) {
+async function validateTxForSessionPayment(
+  session,
+  chainId,
+  txHash,
+  desiredAmount
+) {
   // Transactions on L2s mostly go through within a few seconds. Mainnet can take 15s or
   // possibly even longer.
-  const tx = await retry(async () => {
-    const result = await getTransaction(chainId, txHash)
-    if (!result) throw new Error(`Could not find transaction with txHash ${txHash} on chain ${chainId}`)
-    return result
-  }, 5, 5000);
+  const tx = await retry(
+    async () => {
+      const result = await getTransaction(chainId, txHash)
+      if (!result)
+        throw new Error(
+          `Could not find transaction with txHash ${txHash} on chain ${chainId}`
+        )
+      return result
+    },
+    5,
+    5000
+  )
 
   if (!tx) {
     return {
       status: 400,
-      error: `Could not find transaction with txHash ${txHash} on chain ${chainId}`,
-    };
+      error: `Could not find transaction with txHash ${txHash} on chain ${chainId}`
+    }
   }
 
   if (idServerPaymentAddress !== tx.to.toLowerCase()) {
     return {
       status: 400,
-      error: `Invalid transaction recipient. Recipient must be ${idServerPaymentAddress}`,
-    };
+      error: `Invalid transaction recipient. Recipient must be ${idServerPaymentAddress}`
+    }
   }
 
   // NOTE: This const must stay in sync with the frontend.
   // We allow a 2% margin of error.
-  const expectedAmountInUSD = desiredAmount * 0.98;
+  const expectedAmountInUSD = desiredAmount * 0.98
 
-  let expectedAmountInToken;
+  let expectedAmountInToken
   if ([1, 10, 1313161554, 8453].includes(chainId)) {
-    expectedAmountInToken = await usdToETH(expectedAmountInUSD);
+    expectedAmountInToken = await usdToETH(expectedAmountInUSD)
   } else if (chainId === 250) {
-    expectedAmountInToken = await usdToFTM(expectedAmountInUSD);
+    expectedAmountInToken = await usdToFTM(expectedAmountInUSD)
   } else if (chainId === 43114) {
-    expectedAmountInToken = await usdToAVAX(expectedAmountInUSD);
-  }
-  else if (process.env.NODE_ENV === "development" && chainId === 420) {
-    expectedAmountInToken = await usdToETH(expectedAmountInUSD);
+    expectedAmountInToken = await usdToAVAX(expectedAmountInUSD)
+  } else if (process.env.NODE_ENV === 'development' && chainId === 420) {
+    expectedAmountInToken = await usdToETH(expectedAmountInUSD)
   }
 
   // Round to 18 decimal places to avoid this underflow error from ethers:
   // "fractional component exceeds decimals"
-  const decimals = 18;
-  const multiplier = 10 ** decimals;
-  const rounded = Math.round(expectedAmountInToken * multiplier) / multiplier;
+  const decimals = 18
+  const multiplier = 10 ** decimals
+  const rounded = Math.round(expectedAmountInToken * multiplier) / multiplier
 
-  const expectedAmount = ethers.utils.parseEther(rounded.toString());
+  const expectedAmount = ethers.utils.parseEther(rounded.toString())
 
   if (tx.value.lt(expectedAmount)) {
     return {
       status: 400,
-      error: `Invalid transaction amount. Amount must be greater than ${expectedAmount.toString()} on chain ${chainId}`,
-    };
+      error: `Invalid transaction amount. Amount must be greater than ${expectedAmount.toString()} on chain ${chainId}`
+    }
   }
 
   if (!tx.blockHash || tx.confirmations === 0) {
     console.log('transaction has not been confirmed yet. waiting. tx:', tx)
-    const receipt = await tx.wait();
+    const receipt = await tx.wait()
     if (receipt.confirmations === 0) {
       return {
         status: 400,
-        error: "Transaction has not been confirmed yet.",
-      };
+        error: 'Transaction has not been confirmed yet.'
+      }
     }
   }
 
@@ -136,19 +147,19 @@ async function validateTxForSessionPayment(session, chainId, txHash, desiredAmou
   if (sessionWithTxHash) {
     return {
       status: 400,
-      error: "Transaction has already been used to pay for a session",
-    };
+      error: 'Transaction has already been used to pay for a session'
+    }
   }
 
-  const sidDigest = ethers.utils.keccak256("0x" + session.Item.id.S);
+  const sidDigest = ethers.utils.keccak256('0x' + session.Item.id.S)
   if (tx.data !== sidDigest) {
     return {
       status: 400,
-      error: "Invalid transaction data",
-    };
+      error: 'Invalid transaction data'
+    }
   }
 
-  return {};
+  return {}
 }
 
 /**
@@ -158,154 +169,157 @@ async function validateTxForSessionPayment(session, chainId, txHash, desiredAmou
  * - Ensure tx is confirmed.
  */
 async function validateTxForVoucherPayment(chainId, txHash, desiredAmount) {
-  let tx;
+  let tx
   if (chainId === 1) {
-    tx = await ethereumProvider.getTransaction(txHash);
+    tx = await ethereumProvider.getTransaction(txHash)
   } else if (chainId === 10) {
-    tx = await optimismProvider.getTransaction(txHash);
+    tx = await optimismProvider.getTransaction(txHash)
   } else if (chainId === 250) {
-    tx = await fantomProvider.getTransaction(txHash);
+    tx = await fantomProvider.getTransaction(txHash)
   } else if (chainId === 8453) {
-    tx = await baseProvider.getTransaction(txHash);
+    tx = await baseProvider.getTransaction(txHash)
   } else if (chainId === 43114) {
-    tx = await avalancheProvider.getTransaction(txHash);
+    tx = await avalancheProvider.getTransaction(txHash)
   } else if (chainId === 1313161554) {
-    tx = await auroraProvider.getTransaction(txHash);
-  } else if (process.env.NODE_ENV === "development" && chainId === 420) {
-    tx = await optimismGoerliProvider.getTransaction(txHash);
+    tx = await auroraProvider.getTransaction(txHash)
+  } else if (process.env.NODE_ENV === 'development' && chainId === 420) {
+    tx = await optimismGoerliProvider.getTransaction(txHash)
   }
 
   if (!tx) {
     return {
       status: 400,
-      error: "Could not find transaction with given txHash",
-    };
+      error: 'Could not find transaction with given txHash'
+    }
   }
 
   if (idServerPaymentAddress !== tx.to.toLowerCase()) {
     return {
       status: 400,
-      error: `Invalid transaction recipient. Recipient must be ${idServerPaymentAddress}`,
-    };
+      error: `Invalid transaction recipient. Recipient must be ${idServerPaymentAddress}`
+    }
   }
 
   // NOTE: This const must stay in sync with the frontend.
   // We allow a 2% margin of error.
-  const expectedAmountInUSD = desiredAmount * 0.98;
+  const expectedAmountInUSD = desiredAmount * 0.98
 
-  let expectedAmountInToken;
+  let expectedAmountInToken
   if ([1, 10, 1313161554, 8453].includes(chainId)) {
-    expectedAmountInToken = await usdToETH(expectedAmountInUSD);
+    expectedAmountInToken = await usdToETH(expectedAmountInUSD)
   } else if (chainId === 250) {
-    expectedAmountInToken = await usdToFTM(expectedAmountInUSD);
+    expectedAmountInToken = await usdToFTM(expectedAmountInUSD)
   } else if (chainId === 43114) {
-    expectedAmountInToken = await usdToAVAX(expectedAmountInUSD);
-  }
-  else if (process.env.NODE_ENV === "development" && chainId === 420) {
-    expectedAmountInToken = await usdToETH(expectedAmountInUSD);
+    expectedAmountInToken = await usdToAVAX(expectedAmountInUSD)
+  } else if (process.env.NODE_ENV === 'development' && chainId === 420) {
+    expectedAmountInToken = await usdToETH(expectedAmountInUSD)
   }
 
   // Round to 18 decimal places to avoid this underflow error from ethers:
   // "fractional component exceeds decimals"
-  const decimals = 18;
-  const multiplier = 10 ** decimals;
-  const rounded = Math.round(expectedAmountInToken * multiplier) / multiplier;
+  const decimals = 18
+  const multiplier = 10 ** decimals
+  const rounded = Math.round(expectedAmountInToken * multiplier) / multiplier
 
-  const expectedAmount = ethers.utils.parseEther(rounded.toString());
+  const expectedAmount = ethers.utils.parseEther(rounded.toString())
 
   if (tx.value.lt(expectedAmount)) {
     return {
       status: 400,
-      error: `Invalid transaction amount. Amount must be greater than ${expectedAmount.toString()} on chain ${chainId}`,
-    };
+      error: `Invalid transaction amount. Amount must be greater than ${expectedAmount.toString()} on chain ${chainId}`
+    }
   }
 
   if (!tx.blockHash || tx.confirmations === 0) {
     return {
       status: 400,
-      error: "Transaction has not been confirmed yet.",
-    };
+      error: 'Transaction has not been confirmed yet.'
+    }
   }
 
-  const voucherWithTxHash = await getVoucherByTxHash(txHash);
+  const voucherWithTxHash = await getVoucherByTxHash(txHash)
 
   if (voucherWithTxHash) {
     return {
       status: 400,
-      error: "Transaction has already been used to generate voucher",
-    };
+      error: 'Transaction has already been used to generate voucher'
+    }
   }
 
-  return {};
+  return {}
 }
 
 async function refundMintFeeOnChain(session, to) {
-  let provider;
+  let provider
   if (Number(session.Item.chainId.N) === 1) {
-    provider = ethereumProvider;
+    provider = ethereumProvider
   } else if (Number(session.Item.chainId.N) === 10) {
-    provider = optimismProvider;
+    provider = optimismProvider
   } else if (Number(session.Item.chainId.N) === 250) {
-    provider = fantomProvider;
+    provider = fantomProvider
   } else if (Number(session.Item.chainId.N) === 8453) {
-    provider = baseProvider;
+    provider = baseProvider
   } else if (Number(session.Item.chainId.N) === 43114) {
-    provider = avalancheProvider;
+    provider = avalancheProvider
   } else if (Number(session.Item.chainId.N) === 1313161554) {
-    provider = auroraProvider;
-  } else if (process.env.NODE_ENV === "development" && Number(session.Item.chainId.N) === 420) {
-    provider = optimismGoerliProvider;
+    provider = auroraProvider
+  } else if (
+    process.env.NODE_ENV === 'development' &&
+    Number(session.Item.chainId.N) === 420
+  ) {
+    provider = optimismGoerliProvider
   }
 
-  const tx = await provider.getTransaction(session.Item.txHash.S);
+  const tx = await provider.getTransaction(session.Item.txHash.S)
 
   if (!tx) {
     return {
       status: 404,
       data: {
-        error: "Could not find transaction with given txHash",
-      },
-    };
+        error: 'Could not find transaction with given txHash'
+      }
+    }
   }
 
-  const wallet = new ethers.Wallet(process.env.PAYMENTS_PRIVATE_KEY, provider);
+  const wallet = new ethers.Wallet(process.env.PAYMENTS_PRIVATE_KEY, provider)
 
   // Refund 69.1% of the transaction amount. This approximates the mint cost to
   // a fraction of a cent.
-  const refundAmount = tx.value; // .mul(691).div(1000);
+  const refundAmount = tx.value // .mul(691).div(1000);
 
   // Ensure wallet has enough funds to refund
-  const balance = await wallet.getBalance();
+  const balance = await wallet.getBalance()
   if (balance.lt(refundAmount)) {
     return {
       status: 500,
       data: {
-        error: "Wallet does not have enough funds to refund. Please contact support.",
-      },
-    };
+        error:
+          'Wallet does not have enough funds to refund. Please contact support.'
+      }
+    }
   }
 
   const txReq = await wallet.populateTransaction({
     to: to,
-    value: refundAmount,
-  });
+    value: refundAmount
+  })
 
   // For some reason gas estimates from Fantom are way off. We manually increase
   // gas to avoid "transaction underpriced" error. Hopefully this is unnecessary
   // in the future. The following values happened to be sufficient at the time
   // of adding this block.
   if (Number(session.Item.chainId.N) === 250) {
-    txReq.maxFeePerGas = txReq.maxFeePerGas.mul(2);
-    txReq.maxPriorityFeePerGas = txReq.maxPriorityFeePerGas.mul(14);
+    txReq.maxFeePerGas = txReq.maxFeePerGas.mul(2)
+    txReq.maxPriorityFeePerGas = txReq.maxPriorityFeePerGas.mul(14)
 
     if (txReq.maxPriorityFeePerGas.gt(txReq.maxFeePerGas)) {
-      txReq.maxPriorityFeePerGas = txReq.maxFeePerGas;
+      txReq.maxPriorityFeePerGas = txReq.maxFeePerGas
     }
   }
 
-  const txResponse = await wallet.sendTransaction(txReq);
+  const txResponse = await wallet.sendTransaction(txReq)
 
-  const receipt = await txResponse.wait();
+  const receipt = await txResponse.wait()
 
   await updatePhoneSession(
     session.Item.id.S,
@@ -322,32 +336,32 @@ async function refundMintFeeOnChain(session, to) {
   return {
     status: 200,
     data: {
-      txReceipt: receipt,
-    },
-  };
+      txReceipt: receipt
+    }
+  }
 }
 
 async function refundMintFeePayPal(session) {
-  const accessToken = await getPayPalAccessToken();
+  const accessToken = await getPayPalAccessToken()
 
   const payPalData = JSON.parse(session?.Item?.payPal?.S ?? '{}')
-  const orders = payPalData.orders ?? [];
+  const orders = payPalData.orders ?? []
 
   if (orders.length === 0) {
     return {
       status: 404,
       data: {
-        error: "No PayPal orders found for session",
-      },
-    };
+        error: 'No PayPal orders found for session'
+      }
+    }
   }
 
-  let successfulOrder;
+  let successfulOrder
   for (const { id: orderId } of orders) {
-    const order = await getPayPalOrder(orderId, accessToken);
-    if (order.status === "COMPLETED") {
-      successfulOrder = order;
-      break;
+    const order = await getPayPalOrder(orderId, accessToken)
+    if (order.status === 'COMPLETED') {
+      successfulOrder = order
+      break
     }
   }
 
@@ -355,18 +369,18 @@ async function refundMintFeePayPal(session) {
     return {
       status: 404,
       data: {
-        error: "No successful PayPal orders found for session",
-      },
-    };
+        error: 'No successful PayPal orders found for session'
+      }
+    }
   }
 
   // Get the first successful payment capture
-  let capture;
+  let capture
   for (const pu of successfulOrder.purchase_units) {
     for (const payment of pu.payments.captures) {
-      if (payment.status === "COMPLETED") {
-        capture = payment;
-        break;
+      if (payment.status === 'COMPLETED') {
+        capture = payment
+        break
       }
     }
   }
@@ -375,12 +389,12 @@ async function refundMintFeePayPal(session) {
     return {
       status: 404,
       data: {
-        error: "No successful PayPal payment captures found for session",
-      },
-    };
+        error: 'No successful PayPal payment captures found for session'
+      }
+    }
   }
 
-  const paymentId = capture.id;
+  const paymentId = capture.id
 
   // PayPal returns a 403 when trying to get refund details. Not sure if this
   // is because no refund exists had been performed yet or because of some other.
@@ -400,27 +414,27 @@ async function refundMintFeePayPal(session) {
   const url = `${payPalApiUrlBase}/v2/payments/captures/${paymentId}/refund`
   const config = {
     headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-  };
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`
+    }
+  }
   const data = {
     amount: {
-      value: "2.53",
-      currency_code: "USD",
+      value: '2.53',
+      currency_code: 'USD'
     },
     // invoice_id: "INVOICE-123",
-    note_to_payer: "Failed verification",
-  };
-  const resp = await axios.post(url, data, config);
+    note_to_payer: 'Failed verification'
+  }
+  const resp = await axios.post(url, data, config)
 
-  if (resp.data?.status !== "COMPLETED") {
+  if (resp.data?.status !== 'COMPLETED') {
     return {
       status: 500,
       data: {
-        error: "Error refunding payment",
-      },
-    };
+        error: 'Error refunding payment'
+      }
+    }
   }
 
   await updatePhoneSession(
@@ -437,20 +451,20 @@ async function refundMintFeePayPal(session) {
 
   return {
     status: 200,
-    data: {},
-  };
+    data: {}
+  }
 }
 
 /**
  * ENDPOINT.
- * 
+ *
  * Creates a session.
  */
 async function postSession(req, res) {
   try {
-    const sigDigest = req.body.sigDigest;
+    const sigDigest = req.body.sigDigest
     if (!sigDigest) {
-      return res.status(400).json({ error: "sigDigest is required" });
+      return res.status(400).json({ error: 'sigDigest is required' })
     }
 
     // We started using ObjectId on Feb 25, 2025
@@ -470,29 +484,28 @@ async function postSession(req, res) {
       id,
       sigDigest,
       sessionStatus: sessionStatusEnum.NEEDS_PAYMENT,
-      numAttempts: 0,
-    });
+      numAttempts: 0
+    })
   } catch (err) {
-    console.log("postSession: Error:", err.message);
-    return res.status(500).json({ error: "An unknown error occurred" });
+    console.log('postSession: Error:', err.message)
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
-
 
 /**
  * The same as v1 but immediately sets session status to IN_PROGRESS.
  */
 async function postSessionV2(req, res) {
   try {
-    const sigDigest = req.body.sigDigest;
+    const sigDigest = req.body.sigDigest
     if (!sigDigest) {
-      return res.status(400).json({ error: "sigDigest is required" });
+      return res.status(400).json({ error: 'sigDigest is required' })
     }
 
     // Only allow a user to create up to 2 sessions
     const existingSessions = await getPhoneSessionsBySigDigest(sigDigest)
     const sessions = existingSessions?.Items ? existingSessions.Items : []
-    const filteredSessions = sessions.filter((session) => 
+    const filteredSessions = sessions.filter((session) =>
       [
         sessionStatusEnum.IN_PROGRESS,
         sessionStatusEnum.VERIFICATION_FAILED,
@@ -501,7 +514,9 @@ async function postSessionV2(req, res) {
     )
 
     if (filteredSessions.length >= 2) {
-      return res.status(400).json({ error: "User has reached the maximum number of sessions (2)" });
+      return res
+        .status(400)
+        .json({ error: 'User has reached the maximum number of sessions (2)' })
     }
 
     // We started using ObjectId on Feb 25, 2025
@@ -521,11 +536,11 @@ async function postSessionV2(req, res) {
       id,
       sigDigest,
       sessionStatus: sessionStatusEnum.IN_PROGRESS,
-      numAttempts: 0,
-    });
+      numAttempts: 0
+    })
   } catch (err) {
-    console.log("postSession: Error:", err.message);
-    return res.status(500).json({ error: "An unknown error occurred" });
+    console.log('postSession: Error:', err.message)
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
@@ -534,28 +549,28 @@ async function postSessionV2(req, res) {
  */
 async function createPayPalOrder(req, res) {
   try {
-    const id = req.params.id;
+    const id = req.params.id
 
     const session = await getPhoneSessionById(id)
 
     if (!session?.Item) {
-      return res.status(404).json({ error: "Session not found" });
+      return res.status(404).json({ error: 'Session not found' })
     }
 
-    const accessToken = await getPayPalAccessToken();
+    const accessToken = await getPayPalAccessToken()
 
     const url = `${payPalApiUrlBase}/v2/checkout/orders`
     const body = {
-      intent: "CAPTURE",
+      intent: 'CAPTURE',
       purchase_units: [
         {
           // reference_id: `idv-session-${_id}`,
           amount: {
-            currency_code: "USD",
-            value: "5.00",
-          },
-        },
-      ],
+            currency_code: 'USD',
+            value: '5.00'
+          }
+        }
+      ]
       // payment_source: {
       //   paypal: {
       //     experience_context: {
@@ -570,17 +585,17 @@ async function createPayPalOrder(req, res) {
       //     },
       //   },
       // },
-    };
+    }
     const config = {
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-    };
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`
+      }
+    }
 
-    const resp = await axios.post(url, body, config);
+    const resp = await axios.post(url, body, config)
 
-    const order = resp.data;
+    const order = resp.data
 
     console.log('session?.Item?.payPal?.S', session?.Item?.payPal?.S)
     const sessionPayPalData = JSON.parse(session?.Item?.payPal?.S ?? '{}')
@@ -589,12 +604,14 @@ async function createPayPalOrder(req, res) {
       sessionPayPalData.orders.push({
         id: order.id,
         createdAt: new Date().getTime().toString()
-      });
+      })
     } else {
-      sessionPayPalData.orders = [{
-        id: order.id,
-        createdAt: new Date().getTime().toString()
-      }]
+      sessionPayPalData.orders = [
+        {
+          id: order.id,
+          createdAt: new Date().getTime().toString()
+        }
+      ]
     }
 
     await updatePhoneSession(
@@ -606,25 +623,19 @@ async function createPayPalOrder(req, res) {
       null,
       null,
       JSON.stringify(sessionPayPalData),
-      null,
+      null
     )
 
-    return res.status(201).json(order);
+    return res.status(201).json(order)
   } catch (err) {
     if (err.response) {
-      console.error(
-        { error: err.response.data },
-        "Error creating PayPal order"
-      );
+      console.error({ error: err.response.data }, 'Error creating PayPal order')
     } else if (err.request) {
-      console.error(
-        { error: err.request.data },
-        "Error creating PayPal order"
-      );
+      console.error({ error: err.request.data }, 'Error creating PayPal order')
     } else {
-      console.error({ error: err }, "Error creating PayPal order");
+      console.error({ error: err }, 'Error creating PayPal order')
     }
-    return res.status(500).json({ error: "An unknown error occurred" });
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
@@ -633,38 +644,46 @@ async function createPayPalOrder(req, res) {
  */
 async function payment(req, res) {
   try {
-    const id = req.params.id;
-    const chainId = Number(req.body.chainId);
-    const txHash = req.body.txHash;
+    const id = req.params.id
+    const chainId = Number(req.body.chainId)
+    const txHash = req.body.txHash
     if (!chainId || supportedChainIds.indexOf(chainId) === -1) {
       return res.status(400).json({
         error: `Missing chainId. chainId must be one of ${supportedChainIds.join(
-          ", "
-        )}`,
-      });
+          ', '
+        )}`
+      })
     }
     if (!txHash) {
-      return res.status(400).json({ error: "txHash is required" });
+      return res.status(400).json({ error: 'txHash is required' })
     }
 
     const session = await getPhoneSessionById(id)
 
     if (!session?.Item) {
-      return res.status(404).json({ error: "Session not found" });
+      return res.status(404).json({ error: 'Session not found' })
     }
 
     if (session?.Item?.txHash?.S) {
       return res
         .status(400)
-        .json({ error: "Session is already associated with a transaction" });
+        .json({ error: 'Session is already associated with a transaction' })
     }
 
-    const validationResult = await validateTxForSessionPayment(session, chainId, txHash, 5);
+    const validationResult = await validateTxForSessionPayment(
+      session,
+      chainId,
+      txHash,
+      5
+    )
     if (validationResult.error) {
-      console.log(`Invalid transaction (chainId==${chainId}, txHash==${txHash}). Error:`, validationResult.error);
+      console.log(
+        `Invalid transaction (chainId==${chainId}, txHash==${txHash}). Error:`,
+        validationResult.error
+      )
       return res
         .status(validationResult.status)
-        .json({ error: validationResult.error });
+        .json({ error: validationResult.error })
     }
 
     await updatePhoneSession(
@@ -679,16 +698,16 @@ async function payment(req, res) {
       null
     )
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true })
   } catch (err) {
     if (err.response) {
-      console.error("session payment endpoint: error:", err.response.data);
+      console.error('session payment endpoint: error:', err.response.data)
     } else if (err.request) {
-      console.error("session payment endpoint: error:", err.request.data);
+      console.error('session payment endpoint: error:', err.request.data)
     } else {
-      console.error("session payment endpoint: error:", err);
+      console.error('session payment endpoint: error:', err)
     }
-    return res.status(500).json({ error: "An unknown error occurred" });
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
@@ -698,37 +717,37 @@ async function payment(req, res) {
 async function paymentV2(req, res) {
   try {
     if (req.body.chainId && req.body.txHash) {
-      return payment(req, res);
+      return payment(req, res)
     }
 
-    const id = req.params.id;
-    const orderId = req.body.orderId;
+    const id = req.params.id
+    const orderId = req.body.orderId
 
     if (!orderId) {
-      return res.status(400).json({ error: "orderId is required" });
+      return res.status(400).json({ error: 'orderId is required' })
     }
 
     const session = await getPhoneSessionById(id)
 
     if (!session?.Item) {
-      return res.status(404).json({ error: "Session not found" });
+      return res.status(404).json({ error: 'Session not found' })
     }
 
     if (session.Item.sessionStatus?.S !== sessionStatusEnum.NEEDS_PAYMENT) {
       return res.status(400).json({
-        error: `Session status is '${session.Item.sessionStatus?.S}'. Expected '${sessionStatusEnum.NEEDS_PAYMENT}'`,
-      });
+        error: `Session status is '${session.Item.sessionStatus?.S}'. Expected '${sessionStatusEnum.NEEDS_PAYMENT}'`
+      })
     }
 
     const payPalData = JSON.parse(session?.Item?.payPal?.S ?? '{}')
 
     const filteredOrders = (payPalData?.orders ?? []).filter(
       (order) => order.id === orderId
-    );
+    )
     if (filteredOrders.length === 0) {
       return res.status(400).json({
-        error: `Order ${orderId} is not associated with session ${id}`,
-      });
+        error: `Order ${orderId} is not associated with session ${id}`
+      })
     }
 
     // TODO: Scan all phone sessions for a session with this PayPal order ID.
@@ -740,34 +759,34 @@ async function paymentV2(req, res) {
     //   });
     // }
 
-    const accessToken = await getPayPalAccessToken();
+    const accessToken = await getPayPalAccessToken()
 
-    const order = await capturePayPalOrder(orderId, accessToken);
+    const order = await capturePayPalOrder(orderId, accessToken)
 
-    if (order.status !== "COMPLETED") {
+    if (order.status !== 'COMPLETED') {
       return res.status(400).json({
-        error: `Order ${orderId} has status ${order.status}. Must be COMPLETED`,
-      });
+        error: `Order ${orderId} has status ${order.status}. Must be COMPLETED`
+      })
     }
 
-    const expectedAmountInUSD = 5;
+    const expectedAmountInUSD = 5
 
-    let successfulOrder;
+    let successfulOrder
     for (const pu of order.purchase_units) {
       for (const payment of pu.payments.captures) {
-        if (payment.status === "COMPLETED") {
+        if (payment.status === 'COMPLETED') {
           if (Number(payment.amount.value) >= expectedAmountInUSD) {
-            successfulOrder = order;
+            successfulOrder = order
           }
-          break;
+          break
         }
       }
     }
 
     if (!successfulOrder) {
       return res.status(400).json({
-        error: `Order ${orderId} does not have a successful payment capture with amount >= ${expectedAmountInUSD}`,
-      });
+        error: `Order ${orderId} does not have a successful payment capture with amount >= ${expectedAmountInUSD}`
+      })
     }
 
     await updatePhoneSession(
@@ -782,23 +801,17 @@ async function paymentV2(req, res) {
       null
     )
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true })
   } catch (err) {
     if (err.response) {
-      console.error(
-        { error: err.response.data },
-        "Error in paymentV2"
-      );
+      console.error({ error: err.response.data }, 'Error in paymentV2')
     } else if (err.request) {
-      console.error(
-        { error: err.request.data },
-        "Error in paymentV2"
-      );
+      console.error({ error: err.request.data }, 'Error in paymentV2')
     } else {
-      console.error({ error: err }, "Error in paymentV2");
+      console.error({ error: err }, 'Error in paymentV2')
     }
 
-    return res.status(500).json({ error: "An unknown error occurred" });
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
@@ -807,43 +820,51 @@ async function paymentV2(req, res) {
  */
 async function paymentV3(req, res) {
   try {
-    const apiKey = req.headers["x-api-key"];
+    const apiKey = req.headers['x-api-key']
 
     if (apiKey !== process.env.ADMIN_API_KEY_LOW_PRIVILEGE) {
-      return res.status(401).json({ error: "Invalid API key." });
+      return res.status(401).json({ error: 'Invalid API key.' })
     }
 
-    const id = req.params.id;
-    const chainId = Number(req.body.chainId);
-    const txHash = req.body.txHash;
+    const id = req.params.id
+    const chainId = Number(req.body.chainId)
+    const txHash = req.body.txHash
     if (!chainId || supportedChainIds.indexOf(chainId) === -1) {
       return res.status(400).json({
         error: `Missing chainId. chainId must be one of ${supportedChainIds.join(
-          ", "
-        )}`,
-      });
+          ', '
+        )}`
+      })
     }
     if (!txHash) {
-      return res.status(400).json({ error: "txHash is required" });
+      return res.status(400).json({ error: 'txHash is required' })
     }
 
     const session = await getPhoneSessionById(id)
 
     if (!session?.Item) {
-      return res.status(404).json({ error: "Session not found" });
+      return res.status(404).json({ error: 'Session not found' })
     }
 
     if (session?.Item?.txHash?.S) {
       return res
         .status(400)
-        .json({ error: "Session is already associated with a transaction" });
+        .json({ error: 'Session is already associated with a transaction' })
     }
 
-    const validationResult = await validateTxForSessionPayment(session, chainId, txHash, 3);
-    if (validationResult.error && !validationResult.error.includes("Invalid transaction data")) {
+    const validationResult = await validateTxForSessionPayment(
+      session,
+      chainId,
+      txHash,
+      3
+    )
+    if (
+      validationResult.error &&
+      !validationResult.error.includes('Invalid transaction data')
+    ) {
       return res
         .status(validationResult.status)
-        .json({ error: validationResult.error });
+        .json({ error: validationResult.error })
     }
 
     await updatePhoneSession(
@@ -858,60 +879,57 @@ async function paymentV3(req, res) {
       null
     )
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true })
   } catch (err) {
     if (err.response) {
-      console.error(
-        { error: err.response.data },
-        "Error in paymentV3"
-      );
+      console.error({ error: err.response.data }, 'Error in paymentV3')
     } else if (err.request) {
-      console.error(
-        { error: err.request.data },
-        "Error in paymentV3"
-      );
+      console.error({ error: err.request.data }, 'Error in paymentV3')
     } else {
-      console.error({ error: err }, "Error in paymentV3");
+      console.error({ error: err }, 'Error in paymentV3')
     }
 
-    return res.status(500).json({ error: "An unknown error occurred" });
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
 /**
  * ENDPOINT.
- * 
+ *
  * Allows a user to request a refund for a failed verification session.
  */
 async function refund(req, res) {
-  const id = req.params.id;
-  const to = req.body.to;
+  const id = req.params.id
+  const to = req.body.to
 
   const mutexKey = `sessionRefundMutexLock:${id}`
 
   try {
     if (!to || to.length !== 42) {
       return res.status(400).json({
-        error: "to is required and must be a 42-character hexstring (including 0x)",
-      });
+        error:
+          'to is required and must be a 42-character hexstring (including 0x)'
+      })
     }
 
     const session = await getPhoneSessionById(id)
 
     if (!session?.Item) {
-      return res.status(404).json({ error: "Session not found" });
+      return res.status(404).json({ error: 'Session not found' })
     }
 
-    if (session.Item.sessionStatus.S !== sessionStatusEnum.VERIFICATION_FAILED) {
+    if (
+      session.Item.sessionStatus.S !== sessionStatusEnum.VERIFICATION_FAILED
+    ) {
       return res
         .status(400)
-        .json({ error: "Only failed verifications can be refunded." });
+        .json({ error: 'Only failed verifications can be refunded.' })
     }
 
     if (session.Item.refundTxHash?.S) {
       return res
         .status(400)
-        .json({ error: "Session has already been refunded." });
+        .json({ error: 'Session has already been refunded.' })
     }
 
     // Create mutex. We use mutex here so that only one refund request
@@ -920,28 +938,28 @@ async function refund(req, res) {
     // before the first one is confirmed.
     const mutex = await redis.get(mutexKey)
     if (mutex) {
-      return res.status(400).json({ error: "Refund already in progress" });
+      return res.status(400).json({ error: 'Refund already in progress' })
     }
     await redis.set(mutexKey, 'locked', 'EX', 60)
 
     // Perform refund logic
-    const response = await refundMintFeeOnChain(session, to);
+    const response = await refundMintFeeOnChain(session, to)
 
     // Delete mutex
     await redis.del(mutexKey)
 
     // Return response
-    return res.status(response.status).json(response.data);
+    return res.status(response.status).json(response.data)
   } catch (err) {
     // Delete mutex. We have this here in case an unknown error occurs above.
     try {
       await redis.del(mutexKey)
     } catch (err) {
-      console.log("Error encountered while deleting mutex", err);
+      console.log('Error encountered while deleting mutex', err)
     }
 
-    console.log("Error encountered", err);
-    return res.status(500).json({ error: "An unknown error occurred" });
+    console.log('Error encountered', err)
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
@@ -950,10 +968,10 @@ async function refund(req, res) {
  */
 async function refundV2(req, res) {
   if (req.body.to) {
-    return refund(req, res);
+    return refund(req, res)
   }
 
-  const id = req.params.id;
+  const id = req.params.id
 
   const mutexKey = `sessionRefundMutexLock:${id}`
 
@@ -961,19 +979,21 @@ async function refundV2(req, res) {
     const session = await getPhoneSessionById(id)
 
     if (!session?.Item) {
-      return res.status(404).json({ error: "Session not found" });
+      return res.status(404).json({ error: 'Session not found' })
     }
 
-    if (session.Item.sessionStatus?.S !== sessionStatusEnum.VERIFICATION_FAILED) {
+    if (
+      session.Item.sessionStatus?.S !== sessionStatusEnum.VERIFICATION_FAILED
+    ) {
       return res
         .status(400)
-        .json({ error: "Only failed verifications can be refunded." });
+        .json({ error: 'Only failed verifications can be refunded.' })
     }
 
     if (session.Item.refundTxHash?.S) {
       return res
         .status(400)
-        .json({ error: "Session has already been refunded." });
+        .json({ error: 'Session has already been refunded.' })
     }
 
     // Create mutex. We use mutex here so that only one refund request
@@ -982,60 +1002,60 @@ async function refundV2(req, res) {
     // before the first one is confirmed.
     const mutex = await redis.get(mutexKey)
     if (mutex) {
-      return res.status(400).json({ error: "Refund already in progress" });
+      return res.status(400).json({ error: 'Refund already in progress' })
     }
     await redis.set(mutexKey, 'locked', 'EX', 60)
 
     // Perform refund logic
-    const response = await refundMintFeePayPal(session, to);
+    const response = await refundMintFeePayPal(session, to)
 
     // Delete mutex
     await redis.del(mutexKey)
 
     // Return response
-    return res.status(response.status).json(response.data);
+    return res.status(response.status).json(response.data)
   } catch (err) {
     // Delete mutex. We have this here in case an unknown error occurs above.
     try {
       await redis.del(mutexKey)
     } catch (err) {
-      console.log("Error encountered while deleting mutex", err);
+      console.log('Error encountered while deleting mutex', err)
     }
 
     if (err.response) {
       console.error(
         { error: JSON.stringify(err.response.data, null, 2) },
-        "Error during refund"
-      );
+        'Error during refund'
+      )
     } else if (err.request) {
       console.error(
         { error: JSON.stringify(err.request.data, null, 2) },
-        "Error during refund"
-      );
+        'Error during refund'
+      )
     } else {
-      console.error({ error: err }, "Error during refund");
+      console.error({ error: err }, 'Error during refund')
     }
 
-    console.log("Error encountered", err);
-    return res.status(500).json({ error: "An unknown error occurred" });
+    console.log('Error encountered', err)
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
 /**
  * ENDPOINT.
- * 
+ *
  * Get session(s) associated with sigDigest or id.
  */
 async function getSessions(req, res) {
   try {
-    const sigDigest = req.query.sigDigest;
-    const id = req.query.id;
+    const sigDigest = req.query.sigDigest
+    const id = req.query.id
 
     if (!sigDigest && !id) {
-      return res.status(400).json({ error: "sigDigest or id is required" });
+      return res.status(400).json({ error: 'sigDigest or id is required' })
     }
 
-    let sessions;
+    let sessions
     if (id) {
       const session = await getPhoneSessionById(id)
       sessions = session?.Item ? [session.Item] : []
@@ -1044,96 +1064,102 @@ async function getSessions(req, res) {
       sessions = storedSessions?.Items ? storedSessions.Items : []
     }
 
-    return res.status(200).json(sessions);
+    return res.status(200).json(sessions)
   } catch (err) {
-    console.log("GET /sessions: Error:", err.message);
-    return res.status(500).json({ error: "An unknown error occurred" });
+    console.log('GET /sessions: Error:', err.message)
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
 /**
  * ENDPOINT.
- * 
+ *
  * Allows a user to generate a voucher for bypassing the session payment.
  */
 async function generateVoucher(req, res) {
   try {
-    const chainId = Number(req.body.chainId);
-    const txHash = req.body.txHash;
-    const numberOfVouchers = Number(req.body.numberOfVouchers);
+    const chainId = Number(req.body.chainId)
+    const txHash = req.body.txHash
+    const numberOfVouchers = Number(req.body.numberOfVouchers)
     if (!chainId || supportedChainIds.indexOf(chainId) === -1) {
       return res.status(400).json({
         error: `Missing chainId. chainId must be one of ${supportedChainIds.join(
-          ", "
-        )}`,
-      });
+          ', '
+        )}`
+      })
     }
     if (!txHash) {
-      return res.status(400).json({ error: "txHash is required" });
+      return res.status(400).json({ error: 'txHash is required' })
     }
     if (!numberOfVouchers || numberOfVouchers < 0) {
-      return res.status(400).json({ error: "valid numberOfVouchers is required" });
+      return res
+        .status(400)
+        .json({ error: 'valid numberOfVouchers is required' })
     }
-    const totalAmount = 5 * numberOfVouchers;
-    const validationResult = await validateTxForVoucherPayment(chainId, txHash, totalAmount);
+    const totalAmount = 5 * numberOfVouchers
+    const validationResult = await validateTxForVoucherPayment(
+      chainId,
+      txHash,
+      totalAmount
+    )
     console.log('validationresul', validationResult)
     if (validationResult.error) {
       return res
         .status(validationResult.status)
-        .json({ error: validationResult.error });
+        .json({ error: validationResult.error })
     }
-    const voucherIds = [];
-    const voucherItems = [];
+    const voucherIds = []
+    const voucherItems = []
     for (let i = 0; i < numberOfVouchers; i++) {
-      const id = randomBytes(32).toString('hex');
-      voucherIds.push(id);
+      const id = randomBytes(32).toString('hex')
+      voucherIds.push(id)
       voucherItems.push({
         PutRequest: {
           Item: {
-            'id': { S: `${id}` },
-            'isRedeemed': { BOOL: false },
-            'sessionId': { S: `${null}` },
-            'txHash': { S: `${txHash}` }
+            id: { S: `${id}` },
+            isRedeemed: { BOOL: false },
+            sessionId: { S: `${null}` },
+            txHash: { S: `${txHash}` }
+          }
         }
-        },
-      });
+      })
     }
-    await batchPutVouchers(voucherItems);
+    await batchPutVouchers(voucherItems)
     return res.status(201).json({
-      voucherIds,
-    });
+      voucherIds
+    })
   } catch (err) {
-    console.log("generateVoucher: Error:", err.message);
-    return res.status(500).json({ error: "An unknown error occurred" });
+    console.log('generateVoucher: Error:', err.message)
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
 /**
  * ENDPOINT.
- * 
+ *
  * Allows a user to redeem a valid voucher for bypassing the session payment.
  */
 async function redeemVoucher(req, res) {
   try {
-    const id = req.params.id;
-    const voucherId = req.body.voucherId;
+    const id = req.params.id
+    const voucherId = req.body.voucherId
 
     if (!voucherId) {
-      return res.status(400).json({ error: "voucherId is required" });
+      return res.status(400).json({ error: 'voucherId is required' })
     }
 
-    const session = await getPhoneSessionById(id);
+    const session = await getPhoneSessionById(id)
 
     if (!session?.Item) {
-      return res.status(404).json({ error: "Session not found" });
+      return res.status(404).json({ error: 'Session not found' })
     }
 
-    const voucher = await getVoucherById(voucherId);
+    const voucher = await getVoucherById(voucherId)
     if (!voucher?.Item) {
-      return res.status(404).json({ error: "voucher is invalid" });
+      return res.status(404).json({ error: 'voucher is invalid' })
     }
     if (voucher.Item.isRedeemed.BOOL) {
-      return res.status(404).json({ error: "voucher is already redeemed" });
+      return res.status(404).json({ error: 'voucher is already redeemed' })
     }
     await updatePhoneSession(
       id,
@@ -1147,68 +1173,57 @@ async function redeemVoucher(req, res) {
       null
     )
 
-    await updateVoucher(
-      voucherId,
-      true,
-      id,
-      null
-    )
-    return res.status(200).json({ success: true });
+    await updateVoucher(voucherId, true, id, null)
+    return res.status(200).json({ success: true })
   } catch (err) {
     if (err.response) {
-      console.error(
-        { error: err.response.data },
-        "Error in redeemVoucher"
-      );
+      console.error({ error: err.response.data }, 'Error in redeemVoucher')
     } else if (err.request) {
-      console.error(
-        { error: err.request.data },
-        "Error in redeemVoucher"
-      );
+      console.error({ error: err.request.data }, 'Error in redeemVoucher')
     } else {
-      console.error({ error: err }, "Error in redeemVoucher");
+      console.error({ error: err }, 'Error in redeemVoucher')
     }
 
-    return res.status(500).json({ error: "An unknown error occurred" });
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
 async function isVoucherRedeemed(req, res) {
   try {
-    const voucherId = req.body.voucherId;
+    const voucherId = req.body.voucherId
 
     if (!voucherId) {
-      return res.status(400).json({ error: "voucherId is required" });
+      return res.status(400).json({ error: 'voucherId is required' })
     }
 
-    const voucher = await getVoucherById(voucherId);
+    const voucher = await getVoucherById(voucherId)
     if (!voucher?.Item) {
-      return res.status(404).json({ error: "voucher is invalid" });
+      return res.status(404).json({ error: 'voucher is invalid' })
     }
     if (voucher.Item.isRedeemed.BOOL) {
-      return res.status(200).json({ isRedeemed: true });
+      return res.status(200).json({ isRedeemed: true })
     } else {
-      return res.status(200).json({ isRedeemed: false });
+      return res.status(200).json({ isRedeemed: false })
     }
   } catch (err) {
-    console.log("isVoucherRedeemed: Error:", err.message);
-    return res.status(500).json({ error: "An unknown error occurred" });
+    console.log('isVoucherRedeemed: Error:', err.message)
+    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
-const sessionsRouter = express.Router();
+const sessionsRouter = express.Router()
 
-sessionsRouter.post("/", postSession);
-sessionsRouter.post("/v2", postSessionV2);
-sessionsRouter.post("/:id/paypal-order", createPayPalOrder);
-sessionsRouter.post("/:id/payment", payment);
-sessionsRouter.post("/:id/payment/v2", paymentV2);
-sessionsRouter.post("/:id/payment/v3", paymentV3);
-sessionsRouter.post("/:id/redeem-voucher", redeemVoucher);
-sessionsRouter.post("/:id/refund", refund);
-sessionsRouter.post("/:id/refund/v2", refundV2);
-sessionsRouter.post("/is-voucher-redeemed", isVoucherRedeemed);
-sessionsRouter.get("/", getSessions);
-sessionsRouter.get("/generate-voucher", generateVoucher);
+sessionsRouter.post('/', postSession)
+sessionsRouter.post('/v2', postSessionV2)
+sessionsRouter.post('/:id/paypal-order', createPayPalOrder)
+sessionsRouter.post('/:id/payment', payment)
+sessionsRouter.post('/:id/payment/v2', paymentV2)
+sessionsRouter.post('/:id/payment/v3', paymentV3)
+sessionsRouter.post('/:id/redeem-voucher', redeemVoucher)
+sessionsRouter.post('/:id/refund', refund)
+sessionsRouter.post('/:id/refund/v2', refundV2)
+sessionsRouter.post('/is-voucher-redeemed', isVoucherRedeemed)
+sessionsRouter.get('/', getSessions)
+sessionsRouter.get('/generate-voucher', generateVoucher)
 
-module.exports.sessionsRouter = sessionsRouter;
+module.exports.sessionsRouter = sessionsRouter

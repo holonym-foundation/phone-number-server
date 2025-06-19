@@ -1,15 +1,15 @@
-const { ethers } = require('ethers');
-require('dotenv').config();
+const { ethers } = require('ethers')
+require('dotenv').config()
 
 const sessionStatusEnum = {
-  NEEDS_PAYMENT: "NEEDS_PAYMENT",
-  IN_PROGRESS: "IN_PROGRESS",
-  ISSUED: "ISSUED",
-  VERIFICATION_FAILED: "VERIFICATION_FAILED",
-  REFUNDED: "REFUNDED",
-};
+  NEEDS_PAYMENT: 'NEEDS_PAYMENT',
+  IN_PROGRESS: 'IN_PROGRESS',
+  ISSUED: 'ISSUED',
+  VERIFICATION_FAILED: 'VERIFICATION_FAILED',
+  REFUNDED: 'REFUNDED'
+}
 
-const maxAttemptsPerSession = 3;
+const maxAttemptsPerSession = 3
 
 const supportedChainIds = [
   1, // Ethereum
@@ -17,15 +17,15 @@ const supportedChainIds = [
   250, // Fantom
   8453, // Base
   43114, // Avalanche
-  1313161554, // Aurora
-];
-if (process.env.NODE_ENV === "development") {
-  supportedChainIds.push(420); // Optimism goerli
+  1313161554 // Aurora
+]
+if (process.env.NODE_ENV === 'development') {
+  supportedChainIds.push(420) // Optimism goerli
 }
 
 // NOTE: This const must stay in sync with the frontend.
 // We use the same account that we use for id-server.
-const idServerPaymentAddress = "0xdca2e9ae8423d7b0f94d7f9fc09e698a45f3c851";
+const idServerPaymentAddress = '0xdca2e9ae8423d7b0f94d7f9fc09e698a45f3c851'
 
 // const ethereumProvider = new ethers.providers.AlchemyProvider(
 //   "homestead",
@@ -41,53 +41,53 @@ const idServerPaymentAddress = "0xdca2e9ae8423d7b0f94d7f9fc09e698a45f3c851";
 // );
 const ethereumProvider = new ethers.providers.JsonRpcProvider(
   process.env.ETHEREUM_RPC_URL
-);
+)
 const optimismProvider = new ethers.providers.JsonRpcProvider(
   process.env.OPTIMISM_RPC_URL
-);
+)
 const optimismGoerliProvider = new ethers.providers.JsonRpcProvider(
   process.env.OPTIMISM_GOERLI_RPC_URL
-);
+)
 const baseProvider = new ethers.providers.JsonRpcProvider(
   process.env.BASE_RPC_URL
-);
+)
 const fantomProvider = new ethers.providers.JsonRpcProvider(
-  "https://rpc.ftm.tools"
-);
+  'https://rpc.ftm.tools'
+)
 const avalancheProvider = new ethers.providers.JsonRpcProvider(
-  "https://api.avax.network/ext/bc/C/rpc"
-);
+  'https://api.avax.network/ext/bc/C/rpc'
+)
 const auroraProvider = new ethers.providers.JsonRpcProvider(
   'https://mainnet.aurora.dev'
-);
+)
 
-const ethereumCMCID = 1027;
-const avalancheCMCID = 5805;
+const ethereumCMCID = 1027
+const avalancheCMCID = 5805
 // const fantomCMCID = 3513;
-const fantomCMCID = 32684; // Sonic
+const fantomCMCID = 32684 // Sonic
 
 const cmcSlugToID = {
   ethereum: ethereumCMCID,
   avalanche: avalancheCMCID,
-  fantom: fantomCMCID,
-};
+  fantom: fantomCMCID
+}
 
 const cmcIdToSlug = {
-  [ethereumCMCID]: "ethereum",
-  [avalancheCMCID]: "avalanche",
-  [fantomCMCID]: "fantom",
+  [ethereumCMCID]: 'ethereum',
+  [avalancheCMCID]: 'avalanche',
+  [fantomCMCID]: 'fantom'
 }
 
 const ERROR_MESSAGES = {
   OTP_NOT_FOUND: 'OTP not found',
   OTP_DOES_NOT_MATCH: 'OTP does not match',
   TOO_MANY_ATTEMPTS_COUNTRY: 'Too many recent attempts from country',
-  TOO_MANY_ATTEMPTS_IP: 'Too many recent attempts from IP address',
+  TOO_MANY_ATTEMPTS_IP: 'Too many recent attempts from IP address'
 }
 const payPalApiUrlBase =
-  process.env.NODE_ENV === "production"
-  ? "https://api-m.paypal.com"
-  : "https://api-m.sandbox.paypal.com";
+  process.env.NODE_ENV === 'production'
+    ? 'https://api-m.paypal.com'
+    : 'https://api-m.sandbox.paypal.com'
 
 module.exports = {
   sessionStatusEnum,
@@ -107,5 +107,5 @@ module.exports = {
   cmcSlugToID,
   cmcIdToSlug,
   ERROR_MESSAGES,
-  payPalApiUrlBase,
+  payPalApiUrlBase
 }
