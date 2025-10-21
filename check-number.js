@@ -133,6 +133,13 @@ app.post('/send/v4', async (req, res) => {
 
     const countryCode = getCountryFromPhoneNumber(number)
 
+    // Some countries have a disproportionate amount of spam. Until we find a better solution, we block them
+    if (['ID', 'IN', 'MM'].includes(countryCode)) {
+      return res.status(400).json({
+        error: `Unsupported country, '${countryCode}'`
+      })
+    }
+
     const response = await axios.get(
       `https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${number}?country[]=${countryCode}`
     )
@@ -699,7 +706,7 @@ function getCountryFromPhoneNumber(phoneNumber) {
     return countryCode
   } catch (err) {
     console.error('Error parsing phone number:', err)
-    next(err.message)
+    throw err
   }
 }
 
