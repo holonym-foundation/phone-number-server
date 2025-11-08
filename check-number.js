@@ -133,7 +133,7 @@ app.post('/send/v4', async (req, res) => {
 
     const countryCode = getCountryFromPhoneNumber(number)
 
-    // Some countries have a disproportionate amount of spam. Until we find a better solution, we block them 
+    // Some countries have a disproportionate amount of spam. Until we find a better solution, we block them
     if (['ID', 'IN', 'MM'].includes(countryCode)) {
       return res.status(400).json({
         error: `Unsupported country, '${countryCode}'`
