@@ -15,16 +15,22 @@ const {
   updatePhoneSession,
   getPhoneSessionById,
   putNullifierAndCreds,
-  getNullifierAndCredsByNullifier
+  getNullifierAndCredsByNullifier,
+  getSandboxPhoneSessionById,
+  updateSandboxPhoneSession
+  // putSandboxNullifierAndCreds,
+  // getSandboxNullifierAndCredsByNullifier
 } = require('./dynamodb.js')
 const { redis } = require('./redis.js')
 const {
   failPhoneSession,
-  setPhoneSessionIssued
+  setPhoneSessionIssued,
+  failSandboxPhoneSession,
+  setSandboxPhoneSessionIssued
 } = require('./sessions-utils.js')
 const { timestampIsWithinLast5Days } = require('./utils.js')
 const { begin, verify } = require('./otp.js')
-const { sessionsRouter } = require('./sessions.js')
+const { sessionsRouter, sessionsSandboxRouter } = require('./sessions.js')
 const { adminRouter } = require('./admin.js')
 const {
   sessionStatusEnum,
@@ -71,6 +77,9 @@ const PRIVKEY =
   ]
 
 const ADDRESS = getAddress(PRIVKEY)
+
+const SANDBOX_PRIVKEY = process.env.SANDBOX_PRIVKEY
+const SANDBOX_ADDRESS = SANDBOX_PRIVKEY ? getAddress(SANDBOX_PRIVKEY) : null
 
 const MAX_SENDS_PER_30_DAYS = 20
 
@@ -196,6 +205,65 @@ app.post('/send/v4', async (req, res) => {
     }
 
     res.status(500).send('An unknown error occurred while sending OTP')
+  }
+})
+
+// Sandbox version of /send/v4 - does not send OTP or set cache
+app.post('/sandbox/send/v4', async (req, res) => {
+  try {
+    const number = req.body.number
+    const sessionId = req.body.sessionId
+
+    if (!number) {
+      return res.status(400).send('Missing number')
+    }
+    if (!sessionId) {
+      return res.status(400).send('Missing sessionId')
+    }
+
+    const session = await getSandboxPhoneSessionById(sessionId)
+
+    if (!session?.Item) {
+      return res.status(400).send('Invalid sessionId')
+    }
+
+    if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
+      return res
+        .status(400)
+        .send(
+          `Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`
+        )
+    }
+
+    if (session.Item.numAttempts.N >= maxAttemptsPerSession) {
+      await failSandboxPhoneSession(
+        sessionId,
+        'Session has reached max attempts'
+      )
+      return res.status(400).send('Session has reached max attempts')
+    }
+
+    // Update attempt count
+    const attempts = Number(session.Item.numAttempts.N) + 1
+    await updateSandboxPhoneSession(
+      sessionId,
+      null,
+      null,
+      null,
+      null,
+      attempts,
+      null,
+      null,
+      null
+    )
+
+    // Return success without actually sending OTP or setting cache
+    res
+      .status(200)
+      .json({ success: true, message: 'Sandbox mode: OTP not sent' })
+  } catch (err) {
+    console.error('Error in /send/v4/sandbox:', err)
+    res.status(500).send('An unknown error occurred')
   }
 })
 
@@ -445,6 +513,109 @@ app.get(
   }
 )
 
+// Sandbox version of /getCredentials/v6 - does not check cache or call production APIs
+app.get(
+  '/sandbox/getCredentials/v6/:number/:code/:country/:sessionId/:nullifier',
+  async (req, res) => {
+    req.setTimeout(10000)
+    console.log(
+      'getCredentials v6 sandbox was called for number',
+      req.params.number
+    )
+
+    const issuanceNullifier = req.params.nullifier
+    const sessionId = req.params.sessionId
+
+    if (!SANDBOX_PRIVKEY) {
+      return res.status(500).json({
+        error: 'SANDBOX_PRIVKEY not configured'
+      })
+    }
+
+    try {
+      const _number = BigInt(issuanceNullifier)
+    } catch (err) {
+      return res.status(400).json({
+        error: `Invalid issuance nullifier (${issuanceNullifier}). It must be a number`
+      })
+    }
+
+    try {
+      const session = await getSandboxPhoneSessionById(sessionId)
+
+      if (!session?.Item) {
+        return res.status(400).send('Invalid sessionId')
+      }
+
+      if (
+        session.Item.sessionStatus.S === sessionStatusEnum.VERIFICATION_FAILED
+      ) {
+        return res.status(400).send({
+          error: `Session status is ${
+            session.Item.sessionStatus.S
+          }. Expected ${sessionStatusEnum.IN_PROGRESS}. Failure reason: ${
+            session.Item?.failureReason?.S ?? 'Unknown'
+          }`
+        })
+      }
+
+      // In sandbox mode, there's no need to do the lookup via nullifier.
+      // const phoneByNullifierResult =
+      //   await getSandboxNullifierAndCredsByNullifier(issuanceNullifier)
+      // const phoneByNullifier = phoneByNullifierResult?.Item?.phoneNumber?.S
+      // const createdAt = phoneByNullifierResult?.Item?.createdAt?.N
+      // if (phoneByNullifier && timestampIsWithinLast5Days(createdAt ? parseInt(createdAt) : undefined)) {
+      //   console.log('getCredentials/v6/sandbox: Got phone number from nullifier lookup')
+
+      //   // Note: In sandbox mode, we don't check if number is registered
+
+      //   const phoneNumber = phoneByNullifier.replace('+', '')
+      //   const creds = JSON.parse(
+      //     issuev2(SANDBOX_PRIVKEY, issuanceNullifier, phoneNumber, '0')
+      //   )
+
+      //   await setSandboxPhoneSessionIssued(sessionId)
+
+      //   return res.send(creds)
+      // }
+
+      if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
+        return res.status(400).send({
+          error: `Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`
+        })
+      }
+
+      // In sandbox mode, we don't verify the OTP - we just accept any code
+      // This allows testing without actually sending/receiving OTPs
+
+      // Note: In sandbox mode, we don't check if number is registered
+
+      const phoneNumber = req.params.number.replace('+', '')
+      const creds = JSON.parse(
+        issuev2(SANDBOX_PRIVKEY, issuanceNullifier, phoneNumber, '0')
+      )
+
+      await setSandboxPhoneSessionIssued(sessionId)
+
+      // await putSandboxNullifierAndCreds(issuanceNullifier, req.params.number)
+
+      return res.send(creds)
+    } catch (err) {
+      console.log(
+        `getCredentials v6 sandbox: error for session ${sessionId}`,
+        err
+      )
+
+      // We do not set session status to VERIFICATION_FAILED for sandbox mode
+      // since we're not doing real verification
+
+      res.status(500).send({
+        error: `An unknown error occurred. sessionId: ${req.params.sessionId}`
+      })
+    }
+  }
+)
+
 // Sends a new code to number (E.164 format e.g. +13109273149)
 // app.get("/send/v3/:number", async (req, res) => {
 //     console.log("sending to ", req.params.number)
@@ -582,6 +753,7 @@ function registerIfSafe(phoneNumber, country, next, callback) {
 }
 
 app.use('/sessions', sessionsRouter)
+app.use('/sandbox/sessions', sessionsSandboxRouter)
 app.use('/admin', adminRouter)
 
 /* - */
