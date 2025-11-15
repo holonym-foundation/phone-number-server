@@ -522,11 +522,9 @@ function createPostSessionV2(config) {
       )
 
       if (filteredSessions.length >= 2) {
-        return res
-          .status(400)
-          .json({
-            error: 'User has reached the maximum number of sessions (2)'
-          })
+        return res.status(400).json({
+          error: 'User has reached the maximum number of sessions (2)'
+        })
       }
 
       // We started using ObjectId on Feb 25, 2025
