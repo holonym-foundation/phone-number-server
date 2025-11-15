@@ -13,7 +13,10 @@ const {
   getVoucherByTxHash,
   getVoucherById,
   updateVoucher,
-  batchPutVouchers
+  batchPutVouchers,
+  putSandboxPhoneSession,
+  getSandboxPhoneSessionById,
+  getSandboxPhoneSessionsBySigDigest
 } = require('./dynamodb.js')
 const {
   sessionStatusEnum,
@@ -493,56 +496,74 @@ async function postSession(req, res) {
 }
 
 /**
- * The same as v1 but immediately sets session status to IN_PROGRESS.
+ * Factory function to create postSessionV2 handler
+ * @param {Object} config - Configuration object with database functions
+ * @param {Function} config.getPhoneSessionsBySigDigest - Function to get sessions by sigDigest
+ * @param {Function} config.putPhoneSession - Function to put a phone session
  */
-async function postSessionV2(req, res) {
-  try {
-    const sigDigest = req.body.sigDigest
-    if (!sigDigest) {
-      return res.status(400).json({ error: 'sigDigest is required' })
-    }
+function createPostSessionV2(config) {
+  return async function postSessionV2(req, res) {
+    try {
+      const sigDigest = req.body.sigDigest
+      if (!sigDigest) {
+        return res.status(400).json({ error: 'sigDigest is required' })
+      }
 
-    // Only allow a user to create up to 2 sessions
-    const existingSessions = await getPhoneSessionsBySigDigest(sigDigest)
-    const sessions = existingSessions?.Items ? existingSessions.Items : []
-    const filteredSessions = sessions.filter((session) =>
-      [
+      // Only allow a user to create up to 2 sessions
+      const existingSessions =
+        await config.getPhoneSessionsBySigDigest(sigDigest)
+      const sessions = existingSessions?.Items ? existingSessions.Items : []
+      const filteredSessions = sessions.filter((session) =>
+        [
+          sessionStatusEnum.IN_PROGRESS,
+          sessionStatusEnum.VERIFICATION_FAILED,
+          sessionStatusEnum.ISSUED
+        ].includes(session.sessionStatus.S)
+      )
+
+      if (filteredSessions.length >= 2) {
+        return res
+          .status(400)
+          .json({
+            error: 'User has reached the maximum number of sessions (2)'
+          })
+      }
+
+      // We started using ObjectId on Feb 25, 2025
+      const id = new ObjectId().toString()
+      await config.putPhoneSession(
+        id,
+        sigDigest,
         sessionStatusEnum.IN_PROGRESS,
-        sessionStatusEnum.VERIFICATION_FAILED,
-        sessionStatusEnum.ISSUED
-      ].includes(session.sessionStatus.S)
-    )
+        null,
+        null,
+        0,
+        null,
+        null
+      )
 
-    if (filteredSessions.length >= 2) {
-      return res
-        .status(400)
-        .json({ error: 'User has reached the maximum number of sessions (2)' })
+      return res.status(201).json({
+        id,
+        sigDigest,
+        sessionStatus: sessionStatusEnum.IN_PROGRESS,
+        numAttempts: 0
+      })
+    } catch (err) {
+      console.log('postSession: Error:', err.message)
+      return res.status(500).json({ error: 'An unknown error occurred' })
     }
-
-    // We started using ObjectId on Feb 25, 2025
-    const id = new ObjectId().toString()
-    await putPhoneSession(
-      id,
-      sigDigest,
-      sessionStatusEnum.IN_PROGRESS,
-      null,
-      null,
-      0,
-      null,
-      null
-    )
-
-    return res.status(201).json({
-      id,
-      sigDigest,
-      sessionStatus: sessionStatusEnum.IN_PROGRESS,
-      numAttempts: 0
-    })
-  } catch (err) {
-    console.log('postSession: Error:', err.message)
-    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
+
+const postSessionV2 = createPostSessionV2({
+  getPhoneSessionsBySigDigest,
+  putPhoneSession
+})
+
+const postSessionV2Sandbox = createPostSessionV2({
+  getPhoneSessionsBySigDigest: getSandboxPhoneSessionsBySigDigest,
+  putPhoneSession: putSandboxPhoneSession
+})
 
 /**
  * ENDPOINT.
@@ -1042,34 +1063,48 @@ async function refundV2(req, res) {
 }
 
 /**
- * ENDPOINT.
- *
- * Get session(s) associated with sigDigest or id.
+ * Factory function to create getSessions handler
+ * @param {Object} config - Configuration object with database functions
+ * @param {Function} config.getPhoneSessionById - Function to get session by id
+ * @param {Function} config.getPhoneSessionsBySigDigest - Function to get sessions by sigDigest
  */
-async function getSessions(req, res) {
-  try {
-    const sigDigest = req.query.sigDigest
-    const id = req.query.id
+function createGetSessions(config) {
+  return async function getSessions(req, res) {
+    try {
+      const sigDigest = req.query.sigDigest
+      const id = req.query.id
 
-    if (!sigDigest && !id) {
-      return res.status(400).json({ error: 'sigDigest or id is required' })
+      if (!sigDigest && !id) {
+        return res.status(400).json({ error: 'sigDigest or id is required' })
+      }
+
+      let sessions
+      if (id) {
+        const session = await config.getPhoneSessionById(id)
+        sessions = session?.Item ? [session.Item] : []
+      } else {
+        const storedSessions =
+          await config.getPhoneSessionsBySigDigest(sigDigest)
+        sessions = storedSessions?.Items ? storedSessions.Items : []
+      }
+
+      return res.status(200).json(sessions)
+    } catch (err) {
+      console.log('GET /sessions: Error:', err.message)
+      return res.status(500).json({ error: 'An unknown error occurred' })
     }
-
-    let sessions
-    if (id) {
-      const session = await getPhoneSessionById(id)
-      sessions = session?.Item ? [session.Item] : []
-    } else {
-      const storedSessions = await getPhoneSessionsBySigDigest(sigDigest)
-      sessions = storedSessions?.Items ? storedSessions.Items : []
-    }
-
-    return res.status(200).json(sessions)
-  } catch (err) {
-    console.log('GET /sessions: Error:', err.message)
-    return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
+
+const getSessions = createGetSessions({
+  getPhoneSessionById,
+  getPhoneSessionsBySigDigest
+})
+
+const getSessionsSandbox = createGetSessions({
+  getPhoneSessionById: getSandboxPhoneSessionById,
+  getPhoneSessionsBySigDigest: getSandboxPhoneSessionsBySigDigest
+})
 
 /**
  * ENDPOINT.
@@ -1226,4 +1261,9 @@ sessionsRouter.post('/is-voucher-redeemed', isVoucherRedeemed)
 sessionsRouter.get('/', getSessions)
 sessionsRouter.get('/generate-voucher', generateVoucher)
 
+const sessionsSandboxRouter = express.Router()
+sessionsSandboxRouter.get('/', getSessionsSandbox)
+sessionsSandboxRouter.post('/v2', postSessionV2Sandbox)
+
 module.exports.sessionsRouter = sessionsRouter
+module.exports.sessionsSandboxRouter = sessionsSandboxRouter

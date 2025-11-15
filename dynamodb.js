@@ -70,6 +70,46 @@ const deleteNumber = (number, callback) =>
   ddb.deleteItem(getNumberParams(number), (err, data) => callback(err, data))
 
 /**
+ * Common function to put a phone session - works for both live and sandbox
+ * `status` is a reserved keyword in DynamoDB, so we name it `sessionStatus`.
+ * @param {string} tableName - The table name to use
+ * @param {string | undefined} id
+ * @param {string | undefined} sigDigest
+ * @param {string | undefined} sessionStatus
+ * @param {string | undefined} chainId
+ * @param {string | undefined} txHash
+ * @param {number | undefined} numAttempts
+ * @param {string | undefined} refundTxHash
+ * @param {string | undefined} payPal
+ */
+const putPhoneSessionCommon = (
+  tableName,
+  id,
+  sigDigest,
+  sessionStatus,
+  chainId,
+  txHash,
+  numAttempts,
+  refundTxHash,
+  payPal
+) => {
+  const params = {
+    TableName: tableName,
+    Item: {
+      id: { S: `${id}` },
+      sigDigest: { S: `${sigDigest}` },
+      sessionStatus: { S: `${sessionStatus}` },
+      ...(chainId ? { chainId: { N: `${chainId}` } } : {}),
+      ...(txHash ? { txHash: { S: `${txHash}` } } : {}),
+      numAttempts: { N: `${numAttempts}` },
+      ...(refundTxHash ? { refundTxHash: { S: `${refundTxHash}` } } : {}),
+      ...(payPal ? { payPal: { S: `${payPal}` } } : {})
+    }
+  }
+  return ddb.putItem(params).promise()
+}
+
+/**
  * `status` is a reserved keyword in DynamoDB, so we name it `sessionStatus`.
  * @param {string | undefined} id
  * @param {string | undefined} sigDigest
@@ -90,23 +130,22 @@ const putPhoneSession = (
   refundTxHash,
   payPal
 ) => {
-  const params = {
-    TableName: 'phone-sessions',
-    Item: {
-      id: { S: `${id}` },
-      sigDigest: { S: `${sigDigest}` },
-      sessionStatus: { S: `${sessionStatus}` },
-      ...(chainId ? { chainId: { N: `${chainId}` } } : {}),
-      ...(txHash ? { txHash: { S: `${txHash}` } } : {}),
-      numAttempts: { N: `${numAttempts}` },
-      ...(refundTxHash ? { refundTxHash: { S: `${refundTxHash}` } } : {}),
-      ...(payPal ? { payPal: { S: `${payPal}` } } : {})
-    }
-  }
-  return ddb.putItem(params).promise()
+  return putPhoneSessionCommon(
+    'phone-sessions',
+    id,
+    sigDigest,
+    sessionStatus,
+    chainId,
+    txHash,
+    numAttempts,
+    refundTxHash,
+    payPal
+  )
 }
 
 /**
+ * Common function to update a phone session - works for both live and sandbox
+ * @param {string} tableName - The table name to use
  * @param {string | undefined} id
  * @param {string | undefined} sigDigest
  * @param {string | undefined} sessionStatus
@@ -115,8 +154,10 @@ const putPhoneSession = (
  * @param {number | undefined} numAttempts
  * @param {string | undefined} refundTxHash
  * @param {string | undefined} payPal
+ * @param {string | undefined} failureReason
  */
-const updatePhoneSession = (
+const updatePhoneSessionCommon = (
+  tableName,
   id,
   sigDigest,
   sessionStatus,
@@ -155,7 +196,7 @@ const updatePhoneSession = (
     ...(failureReason ? { ':failureReason': { S: failureReason } } : {})
   }
   const params = {
-    TableName: 'phone-sessions',
+    TableName: tableName,
     Key: { id: { S: `${id}` } },
     UpdateExpression: updateExpression,
     ExpressionAttributeValues: expressionAttributeValues
@@ -164,17 +205,57 @@ const updatePhoneSession = (
   return ddb.updateItem(params).promise()
 }
 
-const getPhoneSessionById = (id) => {
+/**
+ * @param {string | undefined} id
+ * @param {string | undefined} sigDigest
+ * @param {string | undefined} sessionStatus
+ * @param {string | undefined} chainId
+ * @param {string | undefined} txHash
+ * @param {number | undefined} numAttempts
+ * @param {string | undefined} refundTxHash
+ * @param {string | undefined} payPal
+ * @param {string | undefined} failureReason
+ */
+const updatePhoneSession = (
+  id,
+  sigDigest,
+  sessionStatus,
+  chainId,
+  txHash,
+  numAttempts,
+  refundTxHash,
+  payPal,
+  failureReason
+) => {
+  return updatePhoneSessionCommon(
+    'phone-sessions',
+    id,
+    sigDigest,
+    sessionStatus,
+    chainId,
+    txHash,
+    numAttempts,
+    refundTxHash,
+    payPal,
+    failureReason
+  )
+}
+
+const getPhoneSessionByIdCommon = (tableName, id) => {
   const params = {
-    TableName: 'phone-sessions',
+    TableName: tableName,
     Key: { id: { S: `${id}` } }
   }
   return ddb.getItem(params).promise()
 }
 
-const getPhoneSessionsBySigDigest = (sigDigest) => {
+const getPhoneSessionById = (id) => {
+  return getPhoneSessionByIdCommon('phone-sessions', id)
+}
+
+const getPhoneSessionsBySigDigestCommon = (tableName, sigDigest) => {
   const params = {
-    TableName: 'phone-sessions',
+    TableName: tableName,
     IndexName: 'sigDigest-index',
     KeyConditionExpression: 'sigDigest = :sigDigest',
     ExpressionAttributeValues: {
@@ -182,6 +263,10 @@ const getPhoneSessionsBySigDigest = (sigDigest) => {
     }
   }
   return ddb.query(params).promise()
+}
+
+const getPhoneSessionsBySigDigest = (sigDigest) => {
+  return getPhoneSessionsBySigDigestCommon('phone-sessions', sigDigest)
 }
 
 const getPhoneSessionByTxHash = async (txHash) => {
@@ -275,9 +360,13 @@ const getVoucherByTxHash = async (txHash) => {
   return vouchers?.Items?.[0]
 }
 
-const putNullifierAndCreds = (issuanceNullifier, phoneNumber) => {
+const putNullifierAndCredsCommon = (
+  tableName,
+  issuanceNullifier,
+  phoneNumber
+) => {
   const params = {
-    TableName: 'phone-nullifier-and-creds',
+    TableName: tableName,
     Item: {
       issuanceNullifier: { S: `${issuanceNullifier}` },
       phoneNumber: { S: `${phoneNumber}` },
@@ -287,13 +376,104 @@ const putNullifierAndCreds = (issuanceNullifier, phoneNumber) => {
   return ddb.putItem(params).promise()
 }
 
-const getNullifierAndCredsByNullifier = (issuanceNullifier) => {
+const putNullifierAndCreds = (issuanceNullifier, phoneNumber) => {
+  return putNullifierAndCredsCommon(
+    'phone-nullifier-and-creds',
+    issuanceNullifier,
+    phoneNumber
+  )
+}
+
+const getNullifierAndCredsByNullifierCommon = (
+  tableName,
+  issuanceNullifier
+) => {
   const params = {
-    TableName: 'phone-nullifier-and-creds',
+    TableName: tableName,
     Key: { issuanceNullifier: { S: `${issuanceNullifier}` } }
   }
   return ddb.getItem(params).promise()
 }
+
+const getNullifierAndCredsByNullifier = (issuanceNullifier) => {
+  return getNullifierAndCredsByNullifierCommon(
+    'phone-nullifier-and-creds',
+    issuanceNullifier
+  )
+}
+
+// ========== SANDBOX FUNCTIONS ==========
+// These are thin wrappers around the common functions
+
+/**
+ * Sandbox version of putPhoneSession - uses sandbox-phone-sessions table
+ */
+const putSandboxPhoneSession = (
+  id,
+  sigDigest,
+  sessionStatus,
+  chainId,
+  txHash,
+  numAttempts,
+  refundTxHash,
+  payPal
+) => {
+  return putPhoneSessionCommon(
+    'sandbox-phone-sessions',
+    id,
+    sigDigest,
+    sessionStatus,
+    chainId,
+    txHash,
+    numAttempts,
+    refundTxHash,
+    payPal
+  )
+}
+
+/**
+ * Sandbox version of updatePhoneSession - uses sandbox-phone-sessions table
+ */
+const updateSandboxPhoneSession = (
+  id,
+  sigDigest,
+  sessionStatus,
+  chainId,
+  txHash,
+  numAttempts,
+  refundTxHash,
+  payPal,
+  failureReason
+) => {
+  return updatePhoneSessionCommon(
+    'sandbox-phone-sessions',
+    id,
+    sigDigest,
+    sessionStatus,
+    chainId,
+    txHash,
+    numAttempts,
+    refundTxHash,
+    payPal,
+    failureReason
+  )
+}
+
+const getSandboxPhoneSessionById = (id) => {
+  return getPhoneSessionByIdCommon('sandbox-phone-sessions', id)
+}
+
+const getSandboxPhoneSessionsBySigDigest = (sigDigest) => {
+  return getPhoneSessionsBySigDigestCommon('sandbox-phone-sessions', sigDigest)
+}
+
+// const putSandboxNullifierAndCreds = (issuanceNullifier, phoneNumber) => {
+//   return putNullifierAndCredsCommon('sandbox-nullifier-and-creds', issuanceNullifier, phoneNumber)
+// }
+
+// const getSandboxNullifierAndCredsByNullifier = (issuanceNullifier) => {
+//   return getNullifierAndCredsByNullifierCommon('sandbox-nullifier-and-creds', issuanceNullifier)
+// }
 
 // Usage:
 // addNumber('+1234567890')
@@ -314,5 +494,11 @@ module.exports = {
   getVoucherById,
   updateVoucher,
   putNullifierAndCreds,
-  getNullifierAndCredsByNullifier
+  getNullifierAndCredsByNullifier,
+  putSandboxPhoneSession,
+  updateSandboxPhoneSession,
+  getSandboxPhoneSessionById,
+  getSandboxPhoneSessionsBySigDigest
+  // putSandboxNullifierAndCreds,
+  // getSandboxNullifierAndCredsByNullifier
 }
