@@ -1,6 +1,12 @@
 ## Setup
 
-First, install Node.js 16. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your Node.js versions.
+First, install [Bun](https://bun.sh). You can install it by running:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+Or follow the [official installation guide](https://bun.sh/docs/installation).
 
 Clone the repo.
 
@@ -8,10 +14,10 @@ Clone the repo.
 git clone https://github.com/holonym-foundation/phone-number-server.git
 ```
 
-Install dependencies with npm.
+Install dependencies with bun.
 
 ```bash
-npm install
+bun install
 ```
 
 Set environment variables. You might need to contact the team to get the values of some of these variables.
@@ -33,7 +39,13 @@ docker run -p 6379:6379 redis
 Run the development server.
 
 ```bash
-npm run start
+bun run start
+```
+
+Or simply:
+
+```bash
+bun check-number.js
 ```
 
 ## Contributing
@@ -53,6 +65,6 @@ All commits must pass linting and formatting checks.
 Run these commands prior to each commit:
 
 ```bash
-# pnpm lint-fix
-pnpm format-fix
+# bun run lint-fix
+bun run format-fix
 ```

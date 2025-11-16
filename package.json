@@ -4,7 +4,7 @@
   "description": "",
   "main": "check-number.js",
   "scripts": {
-    "start": "node check-number.js",
+    "start": "bun check-number.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint-fix": "echo \"Linting not implemented for phone-number-server\" && exit 0",
     "lint-check": "echo \"Linting not implemented for phone-number-server\" && exit 0",
