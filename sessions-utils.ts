@@ -1,10 +1,10 @@
-const {
-  updatePhoneSession,
-  updateSandboxPhoneSession
-} = require('./dynamodb.js')
-const { sessionStatusEnum } = require('./constants.js')
+import { updatePhoneSession, updateSandboxPhoneSession } from './dynamodb.js'
+import { sessionStatusEnum } from './constants.js'
 
-async function failPhoneSession(sessionId, failureReason) {
+export async function failPhoneSession(
+  sessionId: string,
+  failureReason: string
+): Promise<void> {
   await updatePhoneSession(
     sessionId,
     null,
@@ -18,7 +18,7 @@ async function failPhoneSession(sessionId, failureReason) {
   )
 }
 
-async function setPhoneSessionIssued(sessionId) {
+export async function setPhoneSessionIssued(sessionId: string): Promise<void> {
   await updatePhoneSession(
     sessionId,
     null,
@@ -32,7 +32,10 @@ async function setPhoneSessionIssued(sessionId) {
   )
 }
 
-async function failSandboxPhoneSession(sessionId, failureReason) {
+export async function failSandboxPhoneSession(
+  sessionId: string,
+  failureReason: string
+): Promise<void> {
   await updateSandboxPhoneSession(
     sessionId,
     null,
@@ -46,7 +49,9 @@ async function failSandboxPhoneSession(sessionId, failureReason) {
   )
 }
 
-async function setSandboxPhoneSessionIssued(sessionId) {
+export async function setSandboxPhoneSessionIssued(
+  sessionId: string
+): Promise<void> {
   await updateSandboxPhoneSession(
     sessionId,
     null,
@@ -58,11 +63,4 @@ async function setSandboxPhoneSessionIssued(sessionId) {
     null,
     null
   )
-}
-
-module.exports = {
-  failPhoneSession,
-  setPhoneSessionIssued,
-  failSandboxPhoneSession,
-  setSandboxPhoneSessionIssued
 }

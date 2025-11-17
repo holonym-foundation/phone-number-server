@@ -1,13 +1,13 @@
-const assert = require('assert')
-const axios = require('axios')
-const { issue: issuev0, getAddress } = require('holonym-wasm-issuer-v0')
-const {
-  issue: issuev2,
-  getAddress: getAddressv1
-} = require('holonym-wasm-issuer-v2')
-const express = require('express')
-const cors = require('cors')
-const {
+import assert from 'assert'
+import axios from 'axios'
+import { issue as issuev0, getAddress } from 'holonym-wasm-issuer-v0'
+import {
+  issue as issuev2,
+  getAddress as getAddressv1
+} from 'holonym-wasm-issuer-v2'
+import express, { Request, Response, NextFunction } from 'express'
+import cors from 'cors'
+import {
   addNumber,
   numberExists,
   getNumber,
@@ -20,27 +20,30 @@ const {
   updateSandboxPhoneSession
   // putSandboxNullifierAndCreds,
   // getSandboxNullifierAndCredsByNullifier
-} = require('./dynamodb.js')
-const { redis } = require('./redis.js')
-const {
+} from './dynamodb.js'
+import { redis } from './redis.js'
+import {
   failPhoneSession,
   setPhoneSessionIssued,
   failSandboxPhoneSession,
   setSandboxPhoneSessionIssued
-} = require('./sessions-utils.js')
-const { timestampIsWithinLast5Days } = require('./utils.js')
-const { begin, verify } = require('./otp.js')
-const { sessionsRouter, sessionsSandboxRouter } = require('./sessions.js')
-const { adminRouter } = require('./admin.js')
-const {
+} from './sessions-utils.js'
+import { timestampIsWithinLast5Days } from './utils.js'
+import { begin, verify } from './otp.js'
+import { sessionsRouter, sessionsSandboxRouter } from './sessions.js'
+import { adminRouter } from './admin.js'
+import {
   sessionStatusEnum,
   maxAttemptsPerSession,
   ERROR_MESSAGES
-} = require('./constants.js')
-const PhoneNumber = require('libphonenumber-js')
+} from './constants.js'
+import PhoneNumber from 'libphonenumber-js'
+import twilio from 'twilio'
+import AWS from 'aws-sdk'
 
-require('dotenv').config()
-const client = require('twilio')(
+import 'dotenv/config'
+
+const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
 )
@@ -66,15 +69,14 @@ app.use(express.json({ limit: '5mb' }))
 const port = 3030
 const MAX_FRAUD_SCORE = 75 // ipqualityscore.com defines fraud score. This constant will be used to only allow phone numbers with a <= fraud score.
 
-const PRIVKEY =
-  process.env[
-    `${
-      process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING &&
-      process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING === 'true'
-        ? 'TESTING'
-        : 'PRODUCTION'
-    }_PRIVKEY`
-  ]
+const PRIVKEY = process.env[
+  `${
+    process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING &&
+    process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING === 'true'
+      ? 'TESTING'
+      : 'PRODUCTION'
+  }_PRIVKEY`
+] as string
 
 const ADDRESS = getAddress(PRIVKEY)
 
@@ -84,10 +86,10 @@ const SANDBOX_ADDRESS = SANDBOX_PRIVKEY ? getAddress(SANDBOX_PRIVKEY) : null
 const MAX_SENDS_PER_30_DAYS = 20
 
 // Sends a new code to number (E.164 format e.g. +13109273149)
-app.post('/send/v4', async (req, res) => {
+app.post('/send/v4', async (req: Request, res: Response) => {
   try {
-    const number = req.body.number
-    const sessionId = req.body.sessionId
+    const number = req.body.number as string
+    const sessionId = req.body.sessionId as string
 
     if (!number) {
       return res.status(400).send('Missing number')
@@ -110,7 +112,7 @@ app.post('/send/v4', async (req, res) => {
         )
     }
 
-    if (session.Item.numAttempts.N >= maxAttemptsPerSession) {
+    if (Number(session.Item.numAttempts.N) >= maxAttemptsPerSession) {
       await failPhoneSession(sessionId, 'Session has reached max attempts')
       return res.status(400).send('Session has reached max attempts')
     }
@@ -126,7 +128,9 @@ app.post('/send/v4', async (req, res) => {
     }
 
     // Rate limiting
-    const ip = req.headers['x-forwarded-for'] ?? req.socket.remoteAddress
+    const ip =
+      (req.headers['x-forwarded-for'] as string) ??
+      (req.socket.remoteAddress as string)
     const key = `NUM_SENDS_BY_IP:${ip}`
     const count = await redis.incr(key)
     const ttl = await redis.ttl(key)
@@ -149,7 +153,7 @@ app.post('/send/v4', async (req, res) => {
       })
     }
 
-    const response = await axios.get(
+    const response = await axios.get<{ fraud_score?: number }>(
       `https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${number}?country[]=${countryCode}`
     )
     if (!('fraud_score' in response?.data)) {
@@ -159,7 +163,7 @@ app.post('/send/v4', async (req, res) => {
         .send({ error: 'Received invalid response from ipqualityscore' })
     }
 
-    const isSafe = response.data.fraud_score <= MAX_FRAUD_SCORE
+    const isSafe = (response.data.fraud_score ?? 100) <= MAX_FRAUD_SCORE
 
     if (!isSafe) {
       console.log(
@@ -190,29 +194,30 @@ app.post('/send/v4', async (req, res) => {
       null
     )
 
-    res.sendStatus(200)
+    return res.sendStatus(200)
   } catch (err) {
-    if (err.message.includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
-      return res.status(400).json({ error: err.message })
-    } else if (err.response) {
+    const error = err as Error
+    if (error.message.includes(ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY)) {
+      return res.status(400).json({ error: error.message })
+    } else if (axios.isAxiosError(err) && err.response) {
       console.error('Error sending code (1)', err.response.data)
       console.error('Error sending code (2)', err.response.status)
       console.error('Error sending code (3)', err.response.headers)
-    } else if (err.request) {
+    } else if (axios.isAxiosError(err) && err.request) {
       console.error('Error sending code', err.request)
     } else {
       console.error('Error sending code', err)
     }
 
-    res.status(500).send('An unknown error occurred while sending OTP')
+    return res.status(500).send('An unknown error occurred while sending OTP')
   }
 })
 
 // Sandbox version of /send/v4 - does not send OTP or set cache
-app.post('/sandbox/send/v4', async (req, res) => {
+app.post('/sandbox/send/v4', async (req: Request, res: Response) => {
   try {
-    const number = req.body.number
-    const sessionId = req.body.sessionId
+    const number = req.body.number as string
+    const sessionId = req.body.sessionId as string
 
     if (!number) {
       return res.status(400).send('Missing number')
@@ -235,7 +240,7 @@ app.post('/sandbox/send/v4', async (req, res) => {
         )
     }
 
-    if (session.Item.numAttempts.N >= maxAttemptsPerSession) {
+    if (Number(session.Item.numAttempts.N) >= maxAttemptsPerSession) {
       await failSandboxPhoneSession(
         sessionId,
         'Session has reached max attempts'
@@ -258,16 +263,16 @@ app.post('/sandbox/send/v4', async (req, res) => {
     )
 
     // Return success without actually sending OTP or setting cache
-    res
+    return res
       .status(200)
       .json({ success: true, message: 'Sandbox mode: OTP not sent' })
   } catch (err) {
     console.error('Error in /send/v4/sandbox:', err)
-    res.status(500).send('An unknown error occurred')
+    return res.status(500).send('An unknown error occurred')
   }
 })
 
-function getIsRegistered(phoneNumber) {
+function getIsRegistered(phoneNumber: string): Promise<boolean> {
   return new Promise((resolve, reject) => {
     numberExists(phoneNumber, (err, result) => {
       console.log('is registered', result)
@@ -285,7 +290,9 @@ function getIsRegistered(phoneNumber) {
   })
 }
 
-function getIsRegisteredWithinLast11Months(phoneNumber) {
+function getIsRegisteredWithinLast11Months(
+  phoneNumber: string
+): Promise<boolean> {
   return new Promise((resolve, reject) => {
     getNumber(phoneNumber, (err, result) => {
       console.log('result', result)
@@ -295,14 +302,17 @@ function getIsRegisteredWithinLast11Months(phoneNumber) {
       }
 
       if (
-        result?.Item?.insertedAt &&
+        result?.Item?.insertedAt?.N &&
         !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING
       ) {
         const now = new Date()
         const insertedAt = new Date(parseInt(result.Item.insertedAt.N))
 
         // If the number was inserted within the last 11 months, it is considered registered
-        if (now - insertedAt < 1000 * 60 * 60 * 24 * 30 * 11) {
+        if (
+          now.getTime() - insertedAt.getTime() <
+          1000 * 60 * 60 * 24 * 30 * 11
+        ) {
           resolve(true)
           return
         } else {
@@ -315,7 +325,9 @@ function getIsRegisteredWithinLast11Months(phoneNumber) {
   })
 }
 
-function getIsRegisteredWithinLast11MonthsAndNotLast5Days(phoneNumber) {
+function getIsRegisteredWithinLast11MonthsAndNotLast5Days(
+  phoneNumber: string
+): Promise<boolean> {
   return new Promise((resolve, reject) => {
     getNumber(phoneNumber, (err, result) => {
       if (err) {
@@ -324,7 +336,7 @@ function getIsRegisteredWithinLast11MonthsAndNotLast5Days(phoneNumber) {
       }
 
       if (
-        result?.Item?.insertedAt &&
+        result?.Item?.insertedAt?.N &&
         !process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING
       ) {
         const now = new Date()
@@ -333,8 +345,9 @@ function getIsRegisteredWithinLast11MonthsAndNotLast5Days(phoneNumber) {
         console.log('insertedAt', insertedAt)
 
         const insertedWithinLast11Months =
-          now - insertedAt < 1000 * 60 * 60 * 24 * 30 * 11
-        const insertedOver5DaysAgo = now - insertedAt > 1000 * 60 * 60 * 24 * 5
+          now.getTime() - insertedAt.getTime() < 1000 * 60 * 60 * 24 * 30 * 11
+        const insertedOver5DaysAgo =
+          now.getTime() - insertedAt.getTime() > 1000 * 60 * 60 * 24 * 5
         if (insertedWithinLast11Months && insertedOver5DaysAgo) {
           resolve(true)
           return
@@ -354,7 +367,7 @@ function getIsRegisteredWithinLast11MonthsAndNotLast5Days(phoneNumber) {
  */
 app.get(
   '/getCredentials/v6/:number/:code/:country/:sessionId/:nullifier',
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     req.setTimeout(10000)
     console.log('getCredentials v6 was called for number', req.params.number)
 
@@ -377,7 +390,7 @@ app.get(
       }
 
       if (
-        session.Item.sessionStatus.S === sessionStatusEnum.VERIFICATION_FAILED
+        session.Item?.sessionStatus.S === sessionStatusEnum.VERIFICATION_FAILED
       ) {
         return res.status(400).send({
           error: `Session status is ${
@@ -431,9 +444,9 @@ app.get(
         return res.send(creds)
       }
 
-      if (session.Item.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
+      if (session.Item?.sessionStatus.S !== sessionStatusEnum.IN_PROGRESS) {
         return res.status(400).send({
-          error: `Session status is ${session.Item.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`
+          error: `Session status is ${session.Item?.sessionStatus.S}. Expected ${sessionStatusEnum.IN_PROGRESS}.`
         })
       }
 
@@ -484,29 +497,31 @@ app.get(
     } catch (err) {
       console.log(`getCredentials v6: error for session ${sessionId}`, err)
 
+      const error = err as Error
+
       // We do not set session status to VERIFICATION_FAILED if the error was simply
       // due to rate limiting requests from the user's country or if user inputted incorrect
       // OTP.
-      const acceptableErrors = [
+      const acceptableErrors: string[] = [
         ERROR_MESSAGES.OTP_DOES_NOT_MATCH,
         ERROR_MESSAGES.OTP_NOT_FOUND,
         ERROR_MESSAGES.TOO_MANY_ATTEMPTS_COUNTRY,
         ERROR_MESSAGES.TOO_MANY_ATTEMPTS_IP
       ]
-      if (!acceptableErrors.includes(err.message)) {
-        await failPhoneSession(sessionId, err.message)
+      if (!acceptableErrors.includes(error.message)) {
+        await failPhoneSession(sessionId, error.message)
       }
 
-      if (err.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
+      if (error.message === ERROR_MESSAGES.OTP_NOT_FOUND) {
         return res.status(400).send({ error: ERROR_MESSAGES.OTP_NOT_FOUND })
       }
-      if (err.message === ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
+      if (error.message === ERROR_MESSAGES.OTP_DOES_NOT_MATCH) {
         return res
           .status(400)
           .send({ error: ERROR_MESSAGES.OTP_DOES_NOT_MATCH })
       }
 
-      res.status(500).send({
+      return res.status(500).send({
         error: `An unknown error occurred. Could not verify number with given code. sessionId: ${req.params.sessionId}`
       })
     }
@@ -516,7 +531,7 @@ app.get(
 // Sandbox version of /getCredentials/v6 - does not check cache or call production APIs
 app.get(
   '/sandbox/getCredentials/v6/:number/:code/:country/:sessionId/:nullifier',
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     req.setTimeout(10000)
     console.log(
       'getCredentials v6 sandbox was called for number',
@@ -609,25 +624,24 @@ app.get(
       // We do not set session status to VERIFICATION_FAILED for sandbox mode
       // since we're not doing real verification
 
-      res.status(500).send({
+      return res.status(500).send({
         error: `An unknown error occurred. sessionId: ${req.params.sessionId}`
       })
     }
   }
 )
 
-// Sends a new code to number (E.164 format e.g. +13109273149)
-// app.get("/send/v3/:number", async (req, res) => {
-//     console.log("sending to ", req.params.number)
-//     const countryCode = getCountryFromPhoneNumber(req.params.number);
-//     await begin(req.params.number, countryCode)
-//     res.sendStatus(200)
-// })
-
-function getCountryFromPhoneNumber(phoneNumber) {
+function getCountryFromPhoneNumber(phoneNumber: string): string {
   try {
     const parsedPhoneNumber = PhoneNumber(phoneNumber)
+    if (!parsedPhoneNumber) {
+      throw new Error('Could not parse phone number')
+    }
     const countryCode = parsedPhoneNumber.country
+
+    if (!countryCode) {
+      throw new Error('Could not determine country code from phone number')
+    }
 
     return countryCode
   } catch (err) {
@@ -636,73 +650,29 @@ function getCountryFromPhoneNumber(phoneNumber) {
   }
 }
 
-// Sends a new code to number (E.164 format e.g. +13109273149)
-// app.get("/send/:number", (req, res) => {
-//     // req.setTimeout(5000); // Will timeout if no response from Twilio after 5s
-//     console.log("sending to ", req.params.number)
-//     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
-//                 .verifications
-//                 .create({to: req.params.number, channel: "sms"})
-//                 .then(() => {res.status(200);return;});
-
-// })
-
-// Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
-// app.get("/getCredentials/v2/:number/:code/:country/", (req, res, next) => {
-//     req.setTimeout(10000); // Will timeout if no response from Twilio after 10s
-//     console.log("getCredentials v2 was called ")
-//     client.verify.v2.services(process.env.TWILIO_SERVICE_SID)
-//             .verificationChecks
-//             .create({to: req.params.number, code: req.params.code})
-//             .then(verification => {
-//                 if(verification.status !== "approved"){next("There was a problem verifying the number with the code provided")}
-//                 registerAndGetCredentialsIfSafe("v2", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return}, )
-//             }).catch(err => {
-//                 console.log('getCredentials v2: error', err)
-//                 next("There was a problem verifying the number with the code provided")
-//             });
-// })
-
-// Checks that user-provided code is the one that was sent to number, and if so, and if number is safe and not used before, returns credentials
-// app.get("/getCredentials/v3/:number/:code/:country/", async (req, res, next) => {
-//     req.setTimeout(10000);
-//     console.log("getCredentials v3 was called for number",req.params.number)
-//     let result = false;
-
-//     try {
-//         result = await verify(req.params.number, req.params.code)
-//         if(result) {
-//             registerAndGetCredentialsIfSafe("doesnt_matter", req.params.number, req.params.country, next, (credentials)=>{res.send(credentials); return})
-//         }
-
-//     } catch (err) {
-//         console.log('getCredentials v3: error', err)
-//         next(err.message)
-//     }
-// })
-
 // Express error handling
-app.use(function (err, req, res, next) {
+app.use(function (err: Error, req: Request, res: Response, next: NextFunction) {
   console.log('error: ', err)
-  res.status(err.status || 500).send(err)
+  const status = (err as any).status || 500
+  res.status(status).send(err)
   return
 })
 
 /* Functions */
 
-async function credsFromNumber(phoneNumberWithPlus) {
+async function credsFromNumber(phoneNumberWithPlus: string): Promise<string> {
   console.log('credsFromNumber was called with number ', phoneNumberWithPlus)
   const phoneNumber = phoneNumberWithPlus.replace('+', '')
   return issuev0(PRIVKEY, phoneNumber, '0')
 }
 
 function registerAndGetCredentialsIfSafe(
-  version,
-  phoneNumber,
-  country,
-  next,
-  callback
-) {
+  version: string,
+  phoneNumber: string,
+  country: string,
+  next: (err: any) => void,
+  callback: (credentials: string) => void
+): void {
   // let credsFromNumber = version == "v2" ? credsFromNumberV2 : credsFromNumberDeprecating
   console.log('registerAndGetCredentialsIfSafe was called')
   assert(phoneNumber && country)
@@ -723,16 +693,22 @@ function registerAndGetCredentialsIfSafe(
   }
 }
 
-function registerIfSafe(phoneNumber, country, next, callback) {
+function registerIfSafe(
+  phoneNumber: string,
+  country: string,
+  next: (err: any) => void,
+  callback: (isSafe: boolean) => void
+): void {
   try {
     assert(phoneNumber && country)
     axios
-      .get(
+      .get<{ fraud_score?: number }>(
         `https://ipqualityscore.com/api/json/phone/${process.env.IPQUALITYSCORE_APIKEY}/${phoneNumber}?country[]=${country}`
       )
       .then((response) => {
         if (!('fraud_score' in response?.data)) {
           next(`Invalid response: ${JSON.stringify(response)} `)
+          return
         }
         numberExists(phoneNumber, (err, result) => {
           console.log('is registered', result)
@@ -744,9 +720,10 @@ function registerIfSafe(phoneNumber, country, next, callback) {
           if (!process.env.DISABLE_SYBIL_RESISTANCE_FOR_TESTING) {
             addNumber(phoneNumber)
           }
-          callback(response.data.fraud_score <= MAX_FRAUD_SCORE)
+          callback((response.data.fraud_score ?? 100) <= MAX_FRAUD_SCORE)
         })
       })
+      .catch((err) => next(err))
   } catch (err) {
     next(err)
   }

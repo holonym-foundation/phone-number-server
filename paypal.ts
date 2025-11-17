@@ -1,22 +1,22 @@
-const axios = require('axios')
-const { payPalApiUrlBase } = require('./constants.js')
+import axios from 'axios'
+import { payPalApiUrlBase } from './constants.js'
 
-async function getAccessToken() {
+export async function getAccessToken(): Promise<string> {
   const url = `${payPalApiUrlBase}/v1/oauth2/token`
   const data = new URLSearchParams({
     grant_type: 'client_credentials'
   })
   const config = {
     auth: {
-      username: process.env.PAYPAL_CLIENT_ID,
-      password: process.env.PAYPAL_SECRET
+      username: process.env.PAYPAL_CLIENT_ID as string,
+      password: process.env.PAYPAL_SECRET as string
     }
   }
-  const response = await axios.post(url, data, config)
-  return response?.data?.access_token
+  const response = await axios.post<{ access_token: string }>(url, data, config)
+  return response?.data?.access_token ?? ''
 }
 
-async function getOrder(id, accessToken) {
+export async function getOrder(id: string, accessToken: string): Promise<any> {
   const url = `${payPalApiUrlBase}/v2/checkout/orders/${id}`
   const config = {
     headers: {
@@ -28,7 +28,10 @@ async function getOrder(id, accessToken) {
   return resp.data
 }
 
-async function getRefundDetails(id, accessToken) {
+export async function getRefundDetails(
+  id: string,
+  accessToken: string
+): Promise<any> {
   const url = `${payPalApiUrlBase}/v2/payments/refunds/${id}`
   const config = {
     headers: {
@@ -40,7 +43,10 @@ async function getRefundDetails(id, accessToken) {
   return resp.data
 }
 
-async function capturePayPalOrder(orderId, accessToken) {
+export async function capturePayPalOrder(
+  orderId: string,
+  accessToken: string
+): Promise<any> {
   const url = `${payPalApiUrlBase}/v2/checkout/orders/${orderId}/capture`
   const config = {
     headers: {
@@ -51,11 +57,4 @@ async function capturePayPalOrder(orderId, accessToken) {
   const resp = await axios.post(url, {}, config)
 
   return resp.data
-}
-
-module.exports = {
-  getAccessToken,
-  getOrder,
-  getRefundDetails,
-  capturePayPalOrder
 }
