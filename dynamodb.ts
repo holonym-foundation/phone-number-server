@@ -1,6 +1,6 @@
 import AWS from 'aws-sdk'
 AWS.config.update({ region: 'us-east-2' })
-const ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' })
+export const ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' })
 
 export interface PayPalOrder {
   id: string
