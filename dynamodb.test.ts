@@ -234,7 +234,16 @@ describe('dynamodb', () => {
         promise: () => Promise.resolve(mockResponse)
       })
 
-      await putPhoneSession('session-id', 'sig-digest', 'pending', null, null, null, null, null)
+      await putPhoneSession(
+        'session-id',
+        'sig-digest',
+        'pending',
+        null,
+        null,
+        null,
+        null,
+        null
+      )
 
       expect(mockPutItem).toHaveBeenCalledWith({
         TableName: 'phone-sessions',
@@ -291,13 +300,28 @@ describe('dynamodb', () => {
         promise: () => Promise.resolve(mockResponse)
       })
 
-      await updatePhoneSession('session-id', null, 'completed', null, null, 3, null, null, null)
+      await updatePhoneSession(
+        'session-id',
+        null,
+        'completed',
+        null,
+        null,
+        3,
+        null,
+        null,
+        null
+      )
 
-      const callArgs = mockUpdateItem.mock.calls[0][0] as AWS.DynamoDB.UpdateItemInput
+      const callArgs = mockUpdateItem.mock
+        .calls[0][0] as AWS.DynamoDB.UpdateItemInput
       expect(callArgs.UpdateExpression).toContain('sessionStatus')
       expect(callArgs.UpdateExpression).toContain('numAttempts')
-      expect(callArgs.ExpressionAttributeValues).not.toHaveProperty(':sigDigest')
-      expect(callArgs.ExpressionAttributeValues).toHaveProperty(':sessionStatus')
+      expect(callArgs.ExpressionAttributeValues).not.toHaveProperty(
+        ':sigDigest'
+      )
+      expect(callArgs.ExpressionAttributeValues).toHaveProperty(
+        ':sessionStatus'
+      )
       expect(callArgs.ExpressionAttributeValues).toHaveProperty(':numAttempts')
     })
 
@@ -307,11 +331,24 @@ describe('dynamodb', () => {
         promise: () => Promise.resolve(mockResponse)
       })
 
-      await updatePhoneSession('session-id', null, null, null, null, null, null, null, null)
+      await updatePhoneSession(
+        'session-id',
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      )
 
-      const callArgs = mockUpdateItem.mock.calls[0][0] as AWS.DynamoDB.UpdateItemInput
+      const callArgs = mockUpdateItem.mock
+        .calls[0][0] as AWS.DynamoDB.UpdateItemInput
       expect(callArgs.UpdateExpression).not.toContain('numAttempts')
-      expect(callArgs.ExpressionAttributeValues).not.toHaveProperty(':numAttempts')
+      expect(callArgs.ExpressionAttributeValues).not.toHaveProperty(
+        ':numAttempts'
+      )
     })
   })
 
@@ -390,13 +427,16 @@ describe('dynamodb', () => {
 
   describe('batchPutVouchers', () => {
     it('should batch put vouchers in chunks of 25', async () => {
-      const items: AWS.DynamoDB.WriteRequest[] = Array.from({ length: 50 }, (_, i) => ({
-        PutRequest: {
-          Item: {
-            id: { S: `voucher-${i}` }
+      const items: AWS.DynamoDB.WriteRequest[] = Array.from(
+        { length: 50 },
+        (_, i) => ({
+          PutRequest: {
+            Item: {
+              id: { S: `voucher-${i}` }
+            }
           }
-        }
-      }))
+        })
+      )
 
       mockBatchWriteItem.mockReturnValue({
         promise: () => Promise.resolve({})
@@ -428,13 +468,16 @@ describe('dynamodb', () => {
     })
 
     it('should handle exactly 25 items', async () => {
-      const items: AWS.DynamoDB.WriteRequest[] = Array.from({ length: 25 }, (_, i) => ({
-        PutRequest: {
-          Item: {
-            id: { S: `voucher-${i}` }
+      const items: AWS.DynamoDB.WriteRequest[] = Array.from(
+        { length: 25 },
+        (_, i) => ({
+          PutRequest: {
+            Item: {
+              id: { S: `voucher-${i}` }
+            }
           }
-        }
-      }))
+        })
+      )
 
       mockBatchWriteItem.mockReturnValue({
         promise: () => Promise.resolve({})
@@ -453,7 +496,12 @@ describe('dynamodb', () => {
         promise: () => Promise.resolve(mockResponse)
       })
 
-      const result = await updateVoucher('voucher-id', true, 'session-id', 'tx-hash')
+      const result = await updateVoucher(
+        'voucher-id',
+        true,
+        'session-id',
+        'tx-hash'
+      )
 
       expect(result).toEqual(mockResponse)
       expect(mockUpdateItem).toHaveBeenCalledWith({
@@ -476,9 +524,12 @@ describe('dynamodb', () => {
 
       await updateVoucher('voucher-id', false, undefined, null)
 
-      const callArgs = mockUpdateItem.mock.calls[0][0] as AWS.DynamoDB.UpdateItemInput
+      const callArgs = mockUpdateItem.mock
+        .calls[0][0] as AWS.DynamoDB.UpdateItemInput
       expect(callArgs.ExpressionAttributeValues).toHaveProperty(':isRedeemed')
-      expect(callArgs.ExpressionAttributeValues).not.toHaveProperty(':sessionId')
+      expect(callArgs.ExpressionAttributeValues).not.toHaveProperty(
+        ':sessionId'
+      )
       expect(callArgs.ExpressionAttributeValues).not.toHaveProperty(':txHash')
     })
   })
@@ -584,7 +635,16 @@ describe('dynamodb', () => {
           promise: () => Promise.resolve(mockResponse)
         })
 
-        await putSandboxPhoneSession('session-id', 'sig-digest', 'pending', null, null, null, null, null)
+        await putSandboxPhoneSession(
+          'session-id',
+          'sig-digest',
+          'pending',
+          null,
+          null,
+          null,
+          null,
+          null
+        )
 
         expect(mockPutItem).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -601,7 +661,17 @@ describe('dynamodb', () => {
           promise: () => Promise.resolve(mockResponse)
         })
 
-        await updateSandboxPhoneSession('session-id', null, 'completed', null, null, 1, null, null, null)
+        await updateSandboxPhoneSession(
+          'session-id',
+          null,
+          'completed',
+          null,
+          null,
+          1,
+          null,
+          null,
+          null
+        )
 
         expect(mockUpdateItem).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -648,4 +718,3 @@ describe('dynamodb', () => {
     })
   })
 })
-
