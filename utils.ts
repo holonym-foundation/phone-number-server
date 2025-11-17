@@ -1,17 +1,17 @@
-const assert = require('assert')
-const axios = require('axios')
-const {
+import assert from 'assert'
+import axios from 'axios'
+import {
   ethereumCMCID,
   fantomCMCID,
   avalancheCMCID,
   cmcIdToSlug
-} = require('./constants.js')
+} from './constants.js'
 
-function getDateAsInt(date) {
+export function getDateAsInt(date: string): number {
   // Format input
   const [year, month, day] = date.split('-')
   assert.ok(year && month && day) // Make sure Y M D all given
-  assert.ok(year >= 1900 && year <= 2099) // Make sure date is in a reasonable range, otherwise it's likely the input was malformatted and it's best to be safe by stopping -- we can always allow more edge cases if needed later
+  assert.ok(parseInt(year) >= 1900 && parseInt(year) <= 2099) // Make sure date is in a reasonable range, otherwise it's likely the input was malformatted and it's best to be safe by stopping -- we can always allow more edge cases if needed later
   const time = new Date(date).getTime() / 1000 + 2208988800 // 2208988800000 is 70 year offset; Unix timestamps below 1970 are negative and we want to allow from approximately 1900.
   assert.ok(!isNaN(time))
   return time
@@ -20,22 +20,31 @@ function getDateAsInt(date) {
 // --------------------- Coinmarketcap stuff ---------------------
 // TODO: Use redis instead. This is a temporary solution to avoid hitting
 // CMC's rate limit. key-value pair is { slug: { price: number, lastUpdatedAt: Date } }
-const cryptoPricesCache = {}
+interface CryptoPriceCache {
+  price: number
+  lastUpdatedAt: Date
+}
 
-function getPriceFromCache(slug) {
+const cryptoPricesCache: Record<string, CryptoPriceCache> = {}
+
+function getPriceFromCache(slug: string): number | undefined {
   const now = new Date()
   const cachedPrice = cryptoPricesCache[slug]
   // If price was last updated less than 30 seconds ago, use cached price
-  if (cachedPrice && now - cachedPrice.lastUpdatedAt < 30 * 1000) {
+  if (
+    cachedPrice &&
+    now.getTime() - cachedPrice.lastUpdatedAt.getTime() < 30 * 1000
+  ) {
     return cachedPrice.price
   }
+  return undefined
 }
 
-function setPriceInCache(slug, price) {
+function setPriceInCache(slug: string, price: number): void {
   cryptoPricesCache[slug] = { price, lastUpdatedAt: new Date() }
 }
 
-function getLatestCryptoPrice(id) {
+function getLatestCryptoPrice(id: number) {
   return axios.get(
     `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?id=${id}`,
     {
@@ -50,7 +59,7 @@ function getLatestCryptoPrice(id) {
 /**
  * First, check the cache. If nothing in cache, query CMC, and update cache.
  */
-async function getPriceFromCacheOrAPI(id) {
+export async function getPriceFromCacheOrAPI(id: number): Promise<number> {
   const slug = cmcIdToSlug[id]
   const cachedPrice = getPriceFromCache(slug)
   if (cachedPrice) {
@@ -62,19 +71,19 @@ async function getPriceFromCacheOrAPI(id) {
   return price
 }
 
-async function usdToETH(usdAmount) {
+export async function usdToETH(usdAmount: number): Promise<number> {
   const ethPrice = await getPriceFromCacheOrAPI(ethereumCMCID)
   const ethAmount = usdAmount / ethPrice
   return ethAmount
 }
 
-async function usdToFTM(usdAmount) {
+export async function usdToFTM(usdAmount: number): Promise<number> {
   const fantomPrice = await getPriceFromCacheOrAPI(fantomCMCID)
   const ftmAmount = usdAmount / fantomPrice
   return ftmAmount
 }
 
-async function usdToAVAX(usdAmount) {
+export async function usdToAVAX(usdAmount: number): Promise<number> {
   const avalanchePrice = await getPriceFromCacheOrAPI(avalancheCMCID)
   const avaxAmount = usdAmount / avalanchePrice
   return avaxAmount
@@ -83,11 +92,15 @@ async function usdToAVAX(usdAmount) {
 // --------------------- END: Coinmarketcap stuff ---------------------
 
 /**
- * @param {() => Promise<T>} fn
- * @param {number} retries
- * @param {number} delay
+ * @param fn - Function to retry
+ * @param retries - Number of retries remaining
+ * @param delay - Delay in milliseconds between retries
  */
-async function retry(fn, retries, delay) {
+export async function retry<T>(
+  fn: () => Promise<T>,
+  retries: number,
+  delay: number
+): Promise<T> {
   try {
     return await fn()
   } catch (err) {
@@ -95,9 +108,10 @@ async function retry(fn, retries, delay) {
       throw err
     }
 
+    const error = err as Error
     console.log(
       'retry encountered error "',
-      err.message,
+      error.message,
       '" retries left:',
       retries
     )
@@ -110,19 +124,14 @@ async function retry(fn, retries, delay) {
 }
 
 /**
- * @param {number | undefined} timestamp
+ * @param timestamp - Unix timestamp in milliseconds
  */
-function timestampIsWithinLast5Days(timestamp) {
+export function timestampIsWithinLast5Days(
+  timestamp: number | string | undefined
+): boolean {
   if (!timestamp) return false
-  const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)
-  return timestamp >= fiveDaysAgo
-}
-
-module.exports = {
-  getDateAsInt: getDateAsInt,
-  usdToETH,
-  usdToFTM,
-  usdToAVAX,
-  retry,
-  timestampIsWithinLast5Days
+  const timestampNum =
+    typeof timestamp === 'string' ? parseInt(timestamp) : timestamp
+  const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).getTime()
+  return timestampNum >= fiveDaysAgo
 }

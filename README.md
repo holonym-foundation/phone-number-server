@@ -45,7 +45,15 @@ bun run start
 Or simply:
 
 ```bash
-bun check-number.js
+bun check-number.ts
+```
+
+## TypeScript
+
+This project is written in TypeScript. You can run type checking with:
+
+```bash
+bun run type-check
 ```
 
 ## Contributing

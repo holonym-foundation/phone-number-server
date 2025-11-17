@@ -1,10 +1,10 @@
-const { randomBytes } = require('crypto')
-const express = require('express')
-const axios = require('axios')
-const { createClient } = require('redis')
-const { ethers } = require('ethers')
-const { ObjectId } = require('mongodb')
-const {
+import { randomBytes } from 'crypto'
+import express, { Request, Response } from 'express'
+import axios from 'axios'
+import { createClient } from 'redis'
+import { ethers } from 'ethers'
+import { ObjectId } from 'mongodb'
+import {
   putPhoneSession,
   updatePhoneSession,
   getPhoneSessionById,
@@ -17,8 +17,8 @@ const {
   putSandboxPhoneSession,
   getSandboxPhoneSessionById,
   getSandboxPhoneSessionsBySigDigest
-} = require('./dynamodb.js')
-const {
+} from './dynamodb.js'
+import {
   sessionStatusEnum,
   supportedChainIds,
   idServerPaymentAddress,
@@ -29,21 +29,26 @@ const {
   fantomProvider,
   avalancheProvider,
   auroraProvider,
-  payPalApiUrlBase
-} = require('./constants.js')
-const {
-  getAccessToken: getPayPalAccessToken,
-  getOrder: getPayPalOrder,
-  getRefundDetails: getPayPalRefundDetails,
+  payPalApiUrlBase,
+  SessionStatus
+} from './constants.js'
+import {
+  getAccessToken as getPayPalAccessToken,
+  getOrder as getPayPalOrder,
+  getRefundDetails as getPayPalRefundDetails,
   capturePayPalOrder
-} = require('./paypal.js')
-const { usdToETH, usdToFTM, usdToAVAX, retry } = require('./utils.js')
+} from './paypal.js'
+import { usdToETH, usdToFTM, usdToAVAX, retry } from './utils.js'
+import AWS from 'aws-sdk'
 
 const redis = createClient()
 redis.on('error', (err) => console.log('Redis Client Error', err))
 redis.connect()
 
-function getTransaction(chainId, txHash) {
+function getTransaction(
+  chainId: number,
+  txHash: string
+): Promise<ethers.providers.TransactionResponse> {
   if (chainId === 1) {
     return ethereumProvider.getTransaction(txHash)
   } else if (chainId === 10) {
@@ -63,6 +68,11 @@ function getTransaction(chainId, txHash) {
   }
 }
 
+interface ValidationResult {
+  status?: number
+  error?: string
+}
+
 /**
  * Check blockchain for tx.
  * - Ensure recipient of tx is id-server's address.
@@ -70,11 +80,11 @@ function getTransaction(chainId, txHash) {
  * - Ensure tx is confirmed.
  */
 async function validateTxForSessionPayment(
-  session,
-  chainId,
-  txHash,
-  desiredAmount
-) {
+  session: Promise<AWS.DynamoDB.GetItemOutput>,
+  chainId: number,
+  txHash: string,
+  desiredAmount: number
+): Promise<ValidationResult> {
   // Transactions on L2s mostly go through within a few seconds. Mainnet can take 15s or
   // possibly even longer.
   const tx = await retry(
@@ -97,7 +107,7 @@ async function validateTxForSessionPayment(
     }
   }
 
-  if (idServerPaymentAddress !== tx.to.toLowerCase()) {
+  if (idServerPaymentAddress !== tx.to?.toLowerCase()) {
     return {
       status: 400,
       error: `Invalid transaction recipient. Recipient must be ${idServerPaymentAddress}`
@@ -108,7 +118,7 @@ async function validateTxForSessionPayment(
   // We allow a 2% margin of error.
   const expectedAmountInUSD = desiredAmount * 0.98
 
-  let expectedAmountInToken
+  let expectedAmountInToken: number
   if ([1, 10, 1313161554, 8453].includes(chainId)) {
     expectedAmountInToken = await usdToETH(expectedAmountInUSD)
   } else if (chainId === 250) {
@@ -117,6 +127,8 @@ async function validateTxForSessionPayment(
     expectedAmountInToken = await usdToAVAX(expectedAmountInUSD)
   } else if (process.env.NODE_ENV === 'development' && chainId === 420) {
     expectedAmountInToken = await usdToETH(expectedAmountInUSD)
+  } else {
+    throw new Error(`Unsupported chainId: ${chainId}`)
   }
 
   // Round to 18 decimal places to avoid this underflow error from ethers:
@@ -145,6 +157,7 @@ async function validateTxForSessionPayment(
     }
   }
 
+  const sessionResult = await session
   const sessionWithTxHash = await getPhoneSessionByTxHash(txHash)
 
   if (sessionWithTxHash) {
@@ -154,7 +167,7 @@ async function validateTxForSessionPayment(
     }
   }
 
-  const sidDigest = ethers.utils.keccak256('0x' + session.Item.id.S)
+  const sidDigest = ethers.utils.keccak256('0x' + sessionResult.Item?.id?.S)
   if (tx.data !== sidDigest) {
     return {
       status: 400,
@@ -171,8 +184,12 @@ async function validateTxForSessionPayment(
  * - Ensure amount is > desired amount.
  * - Ensure tx is confirmed.
  */
-async function validateTxForVoucherPayment(chainId, txHash, desiredAmount) {
-  let tx
+async function validateTxForVoucherPayment(
+  chainId: number,
+  txHash: string,
+  desiredAmount: number
+): Promise<ValidationResult> {
+  let tx: ethers.providers.TransactionResponse | null = null
   if (chainId === 1) {
     tx = await ethereumProvider.getTransaction(txHash)
   } else if (chainId === 10) {
@@ -196,7 +213,7 @@ async function validateTxForVoucherPayment(chainId, txHash, desiredAmount) {
     }
   }
 
-  if (idServerPaymentAddress !== tx.to.toLowerCase()) {
+  if (idServerPaymentAddress !== tx.to?.toLowerCase()) {
     return {
       status: 400,
       error: `Invalid transaction recipient. Recipient must be ${idServerPaymentAddress}`
@@ -207,7 +224,7 @@ async function validateTxForVoucherPayment(chainId, txHash, desiredAmount) {
   // We allow a 2% margin of error.
   const expectedAmountInUSD = desiredAmount * 0.98
 
-  let expectedAmountInToken
+  let expectedAmountInToken: number
   if ([1, 10, 1313161554, 8453].includes(chainId)) {
     expectedAmountInToken = await usdToETH(expectedAmountInUSD)
   } else if (chainId === 250) {
@@ -216,6 +233,8 @@ async function validateTxForVoucherPayment(chainId, txHash, desiredAmount) {
     expectedAmountInToken = await usdToAVAX(expectedAmountInUSD)
   } else if (process.env.NODE_ENV === 'development' && chainId === 420) {
     expectedAmountInToken = await usdToETH(expectedAmountInUSD)
+  } else {
+    throw new Error(`Unsupported chainId: ${chainId}`)
   }
 
   // Round to 18 decimal places to avoid this underflow error from ethers:
@@ -252,28 +271,39 @@ async function validateTxForVoucherPayment(chainId, txHash, desiredAmount) {
   return {}
 }
 
-async function refundMintFeeOnChain(session, to) {
-  let provider
-  if (Number(session.Item.chainId.N) === 1) {
+interface RefundResponse {
+  status: number
+  data: any
+}
+
+async function refundMintFeeOnChain(
+  session: Promise<AWS.DynamoDB.GetItemOutput>,
+  to: string
+): Promise<RefundResponse> {
+  const sessionResult = await session
+  let provider: ethers.providers.JsonRpcProvider
+  if (Number(sessionResult.Item?.chainId?.N) === 1) {
     provider = ethereumProvider
-  } else if (Number(session.Item.chainId.N) === 10) {
+  } else if (Number(sessionResult.Item?.chainId?.N) === 10) {
     provider = optimismProvider
-  } else if (Number(session.Item.chainId.N) === 250) {
+  } else if (Number(sessionResult.Item?.chainId?.N) === 250) {
     provider = fantomProvider
-  } else if (Number(session.Item.chainId.N) === 8453) {
+  } else if (Number(sessionResult.Item?.chainId?.N) === 8453) {
     provider = baseProvider
-  } else if (Number(session.Item.chainId.N) === 43114) {
+  } else if (Number(sessionResult.Item?.chainId?.N) === 43114) {
     provider = avalancheProvider
-  } else if (Number(session.Item.chainId.N) === 1313161554) {
+  } else if (Number(sessionResult.Item?.chainId?.N) === 1313161554) {
     provider = auroraProvider
   } else if (
     process.env.NODE_ENV === 'development' &&
-    Number(session.Item.chainId.N) === 420
+    Number(sessionResult.Item?.chainId?.N) === 420
   ) {
     provider = optimismGoerliProvider
+  } else {
+    throw new Error(`Unsupported chainId: ${sessionResult.Item?.chainId?.N}`)
   }
 
-  const tx = await provider.getTransaction(session.Item.txHash.S)
+  const tx = await provider.getTransaction(sessionResult.Item?.txHash?.S ?? '')
 
   if (!tx) {
     return {
@@ -284,7 +314,10 @@ async function refundMintFeeOnChain(session, to) {
     }
   }
 
-  const wallet = new ethers.Wallet(process.env.PAYMENTS_PRIVATE_KEY, provider)
+  const wallet = new ethers.Wallet(
+    process.env.PAYMENTS_PRIVATE_KEY as string,
+    provider
+  )
 
   // Refund 69.1% of the transaction amount. This approximates the mint cost to
   // a fraction of a cent.
@@ -311,12 +344,21 @@ async function refundMintFeeOnChain(session, to) {
   // gas to avoid "transaction underpriced" error. Hopefully this is unnecessary
   // in the future. The following values happened to be sufficient at the time
   // of adding this block.
-  if (Number(session.Item.chainId.N) === 250) {
-    txReq.maxFeePerGas = txReq.maxFeePerGas.mul(2)
-    txReq.maxPriorityFeePerGas = txReq.maxPriorityFeePerGas.mul(14)
+  if (Number(sessionResult.Item?.chainId?.N) === 250) {
+    if (txReq.maxFeePerGas && txReq.maxPriorityFeePerGas) {
+      txReq.maxFeePerGas = ethers.BigNumber.from(txReq.maxFeePerGas).mul(2)
+      txReq.maxPriorityFeePerGas = ethers.BigNumber.from(
+        txReq.maxPriorityFeePerGas
+      ).mul(14)
 
-    if (txReq.maxPriorityFeePerGas.gt(txReq.maxFeePerGas)) {
-      txReq.maxPriorityFeePerGas = txReq.maxFeePerGas
+      if (
+        txReq.maxPriorityFeePerGas &&
+        ethers.BigNumber.from(txReq.maxPriorityFeePerGas).gt(
+          ethers.BigNumber.from(txReq.maxFeePerGas)
+        )
+      ) {
+        txReq.maxPriorityFeePerGas = txReq.maxFeePerGas
+      }
     }
   }
 
@@ -325,7 +367,7 @@ async function refundMintFeeOnChain(session, to) {
   const receipt = await txResponse.wait()
 
   await updatePhoneSession(
-    session.Item.id.S,
+    sessionResult.Item?.id?.S ?? '',
     null,
     sessionStatusEnum.REFUNDED,
     null,
@@ -344,10 +386,13 @@ async function refundMintFeeOnChain(session, to) {
   }
 }
 
-async function refundMintFeePayPal(session) {
+async function refundMintFeePayPal(
+  session: Promise<AWS.DynamoDB.GetItemOutput>
+): Promise<RefundResponse> {
+  const sessionResult = await session
   const accessToken = await getPayPalAccessToken()
 
-  const payPalData = JSON.parse(session?.Item?.payPal?.S ?? '{}')
+  const payPalData = JSON.parse(sessionResult?.Item?.payPal?.S ?? '{}')
   const orders = payPalData.orders ?? []
 
   if (orders.length === 0) {
@@ -359,7 +404,7 @@ async function refundMintFeePayPal(session) {
     }
   }
 
-  let successfulOrder
+  let successfulOrder: any
   for (const { id: orderId } of orders) {
     const order = await getPayPalOrder(orderId, accessToken)
     if (order.status === 'COMPLETED') {
@@ -378,7 +423,7 @@ async function refundMintFeePayPal(session) {
   }
 
   // Get the first successful payment capture
-  let capture
+  let capture: any
   for (const pu of successfulOrder.purchase_units) {
     for (const payment of pu.payments.captures) {
       if (payment.status === 'COMPLETED') {
@@ -399,21 +444,6 @@ async function refundMintFeePayPal(session) {
 
   const paymentId = capture.id
 
-  // PayPal returns a 403 when trying to get refund details. Not sure if this
-  // is because no refund exists had been performed yet or because of some other.
-  // issue I tried creating new credentials and using the sandbox API but still
-  // got a 403.
-  // const refundDetails = await getPayPalRefundDetails(paymentId, accessToken);
-
-  // if (refundDetails.status === "COMPLETED") {
-  //   return {
-  //     status: 400,
-  //     data: {
-  //       error: "Payment has already been refunded",
-  //     },
-  //   };
-  // }
-
   const url = `${payPalApiUrlBase}/v2/payments/captures/${paymentId}/refund`
   const config = {
     headers: {
@@ -426,7 +456,6 @@ async function refundMintFeePayPal(session) {
       value: '2.53',
       currency_code: 'USD'
     },
-    // invoice_id: "INVOICE-123",
     note_to_payer: 'Failed verification'
   }
   const resp = await axios.post(url, data, config)
@@ -441,7 +470,7 @@ async function refundMintFeePayPal(session) {
   }
 
   await updatePhoneSession(
-    session.Item.id.S,
+    sessionResult.Item?.id?.S ?? '',
     null,
     sessionStatusEnum.REFUNDED,
     null,
@@ -463,9 +492,9 @@ async function refundMintFeePayPal(session) {
  *
  * Creates a session.
  */
-async function postSession(req, res) {
+async function postSession(req: Request, res: Response): Promise<Response> {
   try {
-    const sigDigest = req.body.sigDigest
+    const sigDigest = req.body.sigDigest as string
     if (!sigDigest) {
       return res.status(400).json({ error: 'sigDigest is required' })
     }
@@ -490,21 +519,38 @@ async function postSession(req, res) {
       numAttempts: 0
     })
   } catch (err) {
-    console.log('postSession: Error:', err.message)
+    const error = err as Error
+    console.log('postSession: Error:', error.message)
     return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
+interface PostSessionConfig {
+  getPhoneSessionsBySigDigest: (
+    sigDigest: string
+  ) => Promise<AWS.DynamoDB.QueryOutput>
+  putPhoneSession: (
+    id: string,
+    sigDigest: string,
+    sessionStatus: string,
+    chainId: string | null,
+    txHash: string | null,
+    numAttempts: number | null,
+    refundTxHash: string | null,
+    payPal: string | null
+  ) => Promise<AWS.DynamoDB.PutItemOutput>
+}
+
 /**
  * Factory function to create postSessionV2 handler
- * @param {Object} config - Configuration object with database functions
- * @param {Function} config.getPhoneSessionsBySigDigest - Function to get sessions by sigDigest
- * @param {Function} config.putPhoneSession - Function to put a phone session
  */
-function createPostSessionV2(config) {
-  return async function postSessionV2(req, res) {
+function createPostSessionV2(config: PostSessionConfig) {
+  return async function postSessionV2(
+    req: Request,
+    res: Response
+  ): Promise<Response> {
     try {
-      const sigDigest = req.body.sigDigest
+      const sigDigest = req.body.sigDigest as string
       if (!sigDigest) {
         return res.status(400).json({ error: 'sigDigest is required' })
       }
@@ -512,13 +558,16 @@ function createPostSessionV2(config) {
       // Only allow a user to create up to 2 sessions
       const existingSessions =
         await config.getPhoneSessionsBySigDigest(sigDigest)
-      const sessions = existingSessions?.Items ? existingSessions.Items : []
+      const sessionsResult = await existingSessions
+      const sessions = sessionsResult?.Items ? sessionsResult.Items : []
       const filteredSessions = sessions.filter((session) =>
-        [
-          sessionStatusEnum.IN_PROGRESS,
-          sessionStatusEnum.VERIFICATION_FAILED,
-          sessionStatusEnum.ISSUED
-        ].includes(session.sessionStatus.S)
+        (
+          [
+            sessionStatusEnum.IN_PROGRESS,
+            sessionStatusEnum.VERIFICATION_FAILED,
+            sessionStatusEnum.ISSUED
+          ] as SessionStatus[]
+        ).includes(session.sessionStatus?.S as SessionStatus)
       )
 
       if (filteredSessions.length >= 2) {
@@ -547,7 +596,8 @@ function createPostSessionV2(config) {
         numAttempts: 0
       })
     } catch (err) {
-      console.log('postSession: Error:', err.message)
+      const error = err as Error
+      console.log('postSession: Error:', error.message)
       return res.status(500).json({ error: 'An unknown error occurred' })
     }
   }
@@ -566,9 +616,12 @@ const postSessionV2Sandbox = createPostSessionV2({
 /**
  * ENDPOINT.
  */
-async function createPayPalOrder(req, res) {
+async function createPayPalOrder(
+  req: Request,
+  res: Response
+): Promise<Response> {
   try {
-    const id = req.params.id
+    const id = req.params.id as string
 
     const session = await getPhoneSessionById(id)
 
@@ -583,27 +636,12 @@ async function createPayPalOrder(req, res) {
       intent: 'CAPTURE',
       purchase_units: [
         {
-          // reference_id: `idv-session-${_id}`,
           amount: {
             currency_code: 'USD',
             value: '5.00'
           }
         }
       ]
-      // payment_source: {
-      //   paypal: {
-      //     experience_context: {
-      //       payment_method_preference: "IMMEDIATE_PAYMENT_REQUIRED",
-      //       brand_name: "EXAMPLE INC",
-      //       locale: "en-US",
-      //       landing_page: "LOGIN",
-      //       shipping_preference: "SET_PROVIDED_ADDRESS",
-      //       user_action: "PAY_NOW",
-      //       return_url: "https://example.com/returnUrl",
-      //       cancel_url: "https://example.com/cancelUrl",
-      //     },
-      //   },
-      // },
     }
     const config = {
       headers: {
@@ -647,9 +685,9 @@ async function createPayPalOrder(req, res) {
 
     return res.status(201).json(order)
   } catch (err) {
-    if (err.response) {
+    if (axios.isAxiosError(err) && err.response) {
       console.error({ error: err.response.data }, 'Error creating PayPal order')
-    } else if (err.request) {
+    } else if (axios.isAxiosError(err) && err.request) {
       console.error({ error: err.request.data }, 'Error creating PayPal order')
     } else {
       console.error({ error: err }, 'Error creating PayPal order')
@@ -661,11 +699,11 @@ async function createPayPalOrder(req, res) {
 /**
  * ENDPOINT.
  */
-async function payment(req, res) {
+async function payment(req: Request, res: Response): Promise<Response> {
   try {
-    const id = req.params.id
+    const id = req.params.id as string
     const chainId = Number(req.body.chainId)
-    const txHash = req.body.txHash
+    const txHash = req.body.txHash as string
     if (!chainId || supportedChainIds.indexOf(chainId) === -1) {
       return res.status(400).json({
         error: `Missing chainId. chainId must be one of ${supportedChainIds.join(
@@ -690,7 +728,7 @@ async function payment(req, res) {
     }
 
     const validationResult = await validateTxForSessionPayment(
-      session,
+      getPhoneSessionById(id),
       chainId,
       txHash,
       5
@@ -701,7 +739,7 @@ async function payment(req, res) {
         validationResult.error
       )
       return res
-        .status(validationResult.status)
+        .status(validationResult.status ?? 400)
         .json({ error: validationResult.error })
     }
 
@@ -719,9 +757,9 @@ async function payment(req, res) {
 
     return res.status(200).json({ success: true })
   } catch (err) {
-    if (err.response) {
+    if (axios.isAxiosError(err) && err.response) {
       console.error('session payment endpoint: error:', err.response.data)
-    } else if (err.request) {
+    } else if (axios.isAxiosError(err) && err.request) {
       console.error('session payment endpoint: error:', err.request.data)
     } else {
       console.error('session payment endpoint: error:', err)
@@ -733,14 +771,14 @@ async function payment(req, res) {
 /**
  * ENDPOINT.
  */
-async function paymentV2(req, res) {
+async function paymentV2(req: Request, res: Response): Promise<Response> {
   try {
     if (req.body.chainId && req.body.txHash) {
       return payment(req, res)
     }
 
-    const id = req.params.id
-    const orderId = req.body.orderId
+    const id = req.params.id as string
+    const orderId = req.body.orderId as string
 
     if (!orderId) {
       return res.status(400).json({ error: 'orderId is required' })
@@ -761,22 +799,13 @@ async function paymentV2(req, res) {
     const payPalData = JSON.parse(session?.Item?.payPal?.S ?? '{}')
 
     const filteredOrders = (payPalData?.orders ?? []).filter(
-      (order) => order.id === orderId
+      (order: any) => order.id === orderId
     )
     if (filteredOrders.length === 0) {
       return res.status(400).json({
         error: `Order ${orderId} is not associated with session ${id}`
       })
     }
-
-    // TODO: Scan all phone sessions for a session with this PayPal order ID.
-    // And ensure that this order ID is not associated with any other session
-    // const sessions = ...
-    // if (sessions.length > 0) {
-    //   return res.status(400).json({
-    //     error: `Order ${orderId} is already associated with session ${sessions[0]._id}`,
-    //   });
-    // }
 
     const accessToken = await getPayPalAccessToken()
 
@@ -790,7 +819,7 @@ async function paymentV2(req, res) {
 
     const expectedAmountInUSD = 5
 
-    let successfulOrder
+    let successfulOrder: any
     for (const pu of order.purchase_units) {
       for (const payment of pu.payments.captures) {
         if (payment.status === 'COMPLETED') {
@@ -822,9 +851,9 @@ async function paymentV2(req, res) {
 
     return res.status(200).json({ success: true })
   } catch (err) {
-    if (err.response) {
+    if (axios.isAxiosError(err) && err.response) {
       console.error({ error: err.response.data }, 'Error in paymentV2')
-    } else if (err.request) {
+    } else if (axios.isAxiosError(err) && err.request) {
       console.error({ error: err.request.data }, 'Error in paymentV2')
     } else {
       console.error({ error: err }, 'Error in paymentV2')
@@ -837,17 +866,17 @@ async function paymentV2(req, res) {
 /**
  * ENDPOINT.
  */
-async function paymentV3(req, res) {
+async function paymentV3(req: Request, res: Response): Promise<Response> {
   try {
-    const apiKey = req.headers['x-api-key']
+    const apiKey = req.headers['x-api-key'] as string
 
     if (apiKey !== process.env.ADMIN_API_KEY_LOW_PRIVILEGE) {
       return res.status(401).json({ error: 'Invalid API key.' })
     }
 
-    const id = req.params.id
+    const id = req.params.id as string
     const chainId = Number(req.body.chainId)
-    const txHash = req.body.txHash
+    const txHash = req.body.txHash as string
     if (!chainId || supportedChainIds.indexOf(chainId) === -1) {
       return res.status(400).json({
         error: `Missing chainId. chainId must be one of ${supportedChainIds.join(
@@ -872,7 +901,7 @@ async function paymentV3(req, res) {
     }
 
     const validationResult = await validateTxForSessionPayment(
-      session,
+      getPhoneSessionById(id),
       chainId,
       txHash,
       3
@@ -882,7 +911,7 @@ async function paymentV3(req, res) {
       !validationResult.error.includes('Invalid transaction data')
     ) {
       return res
-        .status(validationResult.status)
+        .status(validationResult.status ?? 400)
         .json({ error: validationResult.error })
     }
 
@@ -900,9 +929,9 @@ async function paymentV3(req, res) {
 
     return res.status(200).json({ success: true })
   } catch (err) {
-    if (err.response) {
+    if (axios.isAxiosError(err) && err.response) {
       console.error({ error: err.response.data }, 'Error in paymentV3')
-    } else if (err.request) {
+    } else if (axios.isAxiosError(err) && err.request) {
       console.error({ error: err.request.data }, 'Error in paymentV3')
     } else {
       console.error({ error: err }, 'Error in paymentV3')
@@ -917,9 +946,9 @@ async function paymentV3(req, res) {
  *
  * Allows a user to request a refund for a failed verification session.
  */
-async function refund(req, res) {
-  const id = req.params.id
-  const to = req.body.to
+async function refund(req: Request, res: Response): Promise<Response> {
+  const id = req.params.id as string
+  const to = req.body.to as string
 
   const mutexKey = `sessionRefundMutexLock:${id}`
 
@@ -959,10 +988,10 @@ async function refund(req, res) {
     if (mutex) {
       return res.status(400).json({ error: 'Refund already in progress' })
     }
-    await redis.set(mutexKey, 'locked', 'EX', 60)
+    await redis.set(mutexKey, 'locked', { EX: 60 })
 
     // Perform refund logic
-    const response = await refundMintFeeOnChain(session, to)
+    const response = await refundMintFeeOnChain(getPhoneSessionById(id), to)
 
     // Delete mutex
     await redis.del(mutexKey)
@@ -985,12 +1014,12 @@ async function refund(req, res) {
 /**
  * ENDPOINT.
  */
-async function refundV2(req, res) {
+async function refundV2(req: Request, res: Response): Promise<Response> {
   if (req.body.to) {
     return refund(req, res)
   }
 
-  const id = req.params.id
+  const id = req.params.id as string
 
   const mutexKey = `sessionRefundMutexLock:${id}`
 
@@ -1023,10 +1052,10 @@ async function refundV2(req, res) {
     if (mutex) {
       return res.status(400).json({ error: 'Refund already in progress' })
     }
-    await redis.set(mutexKey, 'locked', 'EX', 60)
+    await redis.set(mutexKey, 'locked', { EX: 60 })
 
     // Perform refund logic
-    const response = await refundMintFeePayPal(session, to)
+    const response = await refundMintFeePayPal(getPhoneSessionById(id))
 
     // Delete mutex
     await redis.del(mutexKey)
@@ -1041,12 +1070,12 @@ async function refundV2(req, res) {
       console.log('Error encountered while deleting mutex', err)
     }
 
-    if (err.response) {
+    if (axios.isAxiosError(err) && err.response) {
       console.error(
         { error: JSON.stringify(err.response.data, null, 2) },
         'Error during refund'
       )
-    } else if (err.request) {
+    } else if (axios.isAxiosError(err) && err.request) {
       console.error(
         { error: JSON.stringify(err.request.data, null, 2) },
         'Error during refund'
@@ -1060,35 +1089,45 @@ async function refundV2(req, res) {
   }
 }
 
+interface GetSessionsConfig {
+  getPhoneSessionById: (id: string) => Promise<AWS.DynamoDB.GetItemOutput>
+  getPhoneSessionsBySigDigest: (
+    sigDigest: string
+  ) => Promise<AWS.DynamoDB.QueryOutput>
+}
+
 /**
  * Factory function to create getSessions handler
- * @param {Object} config - Configuration object with database functions
- * @param {Function} config.getPhoneSessionById - Function to get session by id
- * @param {Function} config.getPhoneSessionsBySigDigest - Function to get sessions by sigDigest
  */
-function createGetSessions(config) {
-  return async function getSessions(req, res) {
+function createGetSessions(config: GetSessionsConfig) {
+  return async function getSessions(
+    req: Request,
+    res: Response
+  ): Promise<Response> {
     try {
-      const sigDigest = req.query.sigDigest
-      const id = req.query.id
+      const sigDigest = req.query.sigDigest as string
+      const id = req.query.id as string
 
       if (!sigDigest && !id) {
         return res.status(400).json({ error: 'sigDigest or id is required' })
       }
 
-      let sessions
+      let sessions: AWS.DynamoDB.AttributeMap[]
       if (id) {
         const session = await config.getPhoneSessionById(id)
-        sessions = session?.Item ? [session.Item] : []
+        const sessionResult = await session
+        sessions = sessionResult?.Item ? [sessionResult.Item] : []
       } else {
         const storedSessions =
           await config.getPhoneSessionsBySigDigest(sigDigest)
-        sessions = storedSessions?.Items ? storedSessions.Items : []
+        const sessionsResult = await storedSessions
+        sessions = sessionsResult?.Items ? sessionsResult.Items : []
       }
 
       return res.status(200).json(sessions)
     } catch (err) {
-      console.log('GET /sessions: Error:', err.message)
+      const error = err as Error
+      console.log('GET /sessions: Error:', error.message)
       return res.status(500).json({ error: 'An unknown error occurred' })
     }
   }
@@ -1109,10 +1148,10 @@ const getSessionsSandbox = createGetSessions({
  *
  * Allows a user to generate a voucher for bypassing the session payment.
  */
-async function generateVoucher(req, res) {
+async function generateVoucher(req: Request, res: Response): Promise<Response> {
   try {
     const chainId = Number(req.body.chainId)
-    const txHash = req.body.txHash
+    const txHash = req.body.txHash as string
     const numberOfVouchers = Number(req.body.numberOfVouchers)
     if (!chainId || supportedChainIds.indexOf(chainId) === -1) {
       return res.status(400).json({
@@ -1138,11 +1177,11 @@ async function generateVoucher(req, res) {
     console.log('validationresul', validationResult)
     if (validationResult.error) {
       return res
-        .status(validationResult.status)
+        .status(validationResult.status ?? 400)
         .json({ error: validationResult.error })
     }
-    const voucherIds = []
-    const voucherItems = []
+    const voucherIds: string[] = []
+    const voucherItems: AWS.DynamoDB.WriteRequest[] = []
     for (let i = 0; i < numberOfVouchers; i++) {
       const id = randomBytes(32).toString('hex')
       voucherIds.push(id)
@@ -1162,7 +1201,8 @@ async function generateVoucher(req, res) {
       voucherIds
     })
   } catch (err) {
-    console.log('generateVoucher: Error:', err.message)
+    const error = err as Error
+    console.log('generateVoucher: Error:', error.message)
     return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
@@ -1172,10 +1212,10 @@ async function generateVoucher(req, res) {
  *
  * Allows a user to redeem a valid voucher for bypassing the session payment.
  */
-async function redeemVoucher(req, res) {
+async function redeemVoucher(req: Request, res: Response): Promise<Response> {
   try {
-    const id = req.params.id
-    const voucherId = req.body.voucherId
+    const id = req.params.id as string
+    const voucherId = req.body.voucherId as string
 
     if (!voucherId) {
       return res.status(400).json({ error: 'voucherId is required' })
@@ -1209,9 +1249,9 @@ async function redeemVoucher(req, res) {
     await updateVoucher(voucherId, true, id, null)
     return res.status(200).json({ success: true })
   } catch (err) {
-    if (err.response) {
+    if (axios.isAxiosError(err) && err.response) {
       console.error({ error: err.response.data }, 'Error in redeemVoucher')
-    } else if (err.request) {
+    } else if (axios.isAxiosError(err) && err.request) {
       console.error({ error: err.request.data }, 'Error in redeemVoucher')
     } else {
       console.error({ error: err }, 'Error in redeemVoucher')
@@ -1221,9 +1261,12 @@ async function redeemVoucher(req, res) {
   }
 }
 
-async function isVoucherRedeemed(req, res) {
+async function isVoucherRedeemed(
+  req: Request,
+  res: Response
+): Promise<Response> {
   try {
-    const voucherId = req.body.voucherId
+    const voucherId = req.body.voucherId as string
 
     if (!voucherId) {
       return res.status(400).json({ error: 'voucherId is required' })
@@ -1239,12 +1282,13 @@ async function isVoucherRedeemed(req, res) {
       return res.status(200).json({ isRedeemed: false })
     }
   } catch (err) {
-    console.log('isVoucherRedeemed: Error:', err.message)
+    const error = err as Error
+    console.log('isVoucherRedeemed: Error:', error.message)
     return res.status(500).json({ error: 'An unknown error occurred' })
   }
 }
 
-const sessionsRouter = express.Router()
+export const sessionsRouter = express.Router()
 
 sessionsRouter.post('/', postSession)
 sessionsRouter.post('/v2', postSessionV2)
@@ -1259,9 +1303,6 @@ sessionsRouter.post('/is-voucher-redeemed', isVoucherRedeemed)
 sessionsRouter.get('/', getSessions)
 sessionsRouter.get('/generate-voucher', generateVoucher)
 
-const sessionsSandboxRouter = express.Router()
+export const sessionsSandboxRouter = express.Router()
 sessionsSandboxRouter.get('/', getSessionsSandbox)
 sessionsSandboxRouter.post('/v2', postSessionV2Sandbox)
-
-module.exports.sessionsRouter = sessionsRouter
-module.exports.sessionsSandboxRouter = sessionsSandboxRouter

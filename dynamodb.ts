@@ -1,45 +1,41 @@
-var AWS = require('aws-sdk')
+import AWS from 'aws-sdk'
 AWS.config.update({ region: 'us-east-2' })
-var ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' })
+const ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' })
 
-/**
- * @typedef PayPalOrder
- * @property {string} id
- * @property {string} createdAt
- */
+export interface PayPalOrder {
+  id: string
+  createdAt: string
+}
 
-/**
- * @typedef PhoneSessionPayPalData
- * @property {Array<PayPalOrder>} orders
- */
+export interface PhoneSessionPayPalData {
+  orders: PayPalOrder[]
+}
 
-/**
- * @typedef PhoneSession
- * @property {string} id
- * @property {string} sigDigest
- * @property {string} sessionStatus
- * @property {string | undefined} chainId
- * @property {string | undefined} txHash
- * @property {number} numAttempts
- * @property {string | undefined} refundTxHash
- * @property {string | undefined} payPal JSON stringified PhoneSessionPayPalData
- */
+export interface PhoneSession {
+  id: string
+  sigDigest: string
+  sessionStatus: string
+  chainId?: string
+  txHash?: string
+  numAttempts: number
+  refundTxHash?: string
+  payPal?: string // JSON stringified PhoneSessionPayPalData
+}
 
-/**
- * @typedef NullifierAndCreds
- * @property {string} issuanceNullifier
- * @property {string} phoneNumber
- * @property {number} createdAt - Unix timestamp
- */
+export interface NullifierAndCreds {
+  issuanceNullifier: string
+  phoneNumber: string
+  createdAt: number // Unix timestamp
+}
 
 // Helper function to get a phone number from the db
-const getNumberParams = (value) => ({
+const getNumberParams = (value: string) => ({
   TableName: 'phone-numbers',
   Key: { phoneNumber: { S: `${value}` } }
 })
 
 // Helper function to insert a phone number into the db
-const putNumberParams = (value) => ({
+const putNumberParams = (value: string) => ({
   TableName: 'phone-numbers',
   Item: {
     phoneNumber: {
@@ -52,48 +48,61 @@ const putNumberParams = (value) => ({
 })
 
 // Returns true if number exists, false otherwise
-const numberExists = (number, callback) =>
-  ddb.getItem(getNumberParams(number), (err, data) =>
-    callback(err, data && 'Item' in data)
+export const numberExists = (
+  number: string,
+  callback: (err: AWS.AWSError | null, data: boolean) => void
+): void => {
+  void ddb.getItem(getNumberParams(number), (err, data) =>
+    callback(err, data && 'Item' in data ? true : false)
   )
+}
 
 // Adds number to the db
-const addNumber = (number) =>
-  ddb.putItem(putNumberParams(number), (err) => {
+export const addNumber = (number: string): void => {
+  void ddb.putItem(putNumberParams(number), (err) => {
     if (err) throw 'Error storing number'
   })
+}
 
-const getNumber = (number, callback) =>
-  ddb.getItem(getNumberParams(number), (err, data) => callback(err, data))
+export const getNumber = (
+  number: string,
+  callback: (err: AWS.AWSError | null, data: AWS.DynamoDB.GetItemOutput) => void
+): void => {
+  void ddb.getItem(getNumberParams(number), (err, data) => callback(err, data))
+}
 
-const deleteNumber = (number, callback) =>
-  ddb.deleteItem(getNumberParams(number), (err, data) => callback(err, data))
+export const deleteNumber = (
+  number: string,
+  callback: (
+    err: AWS.AWSError | null,
+    data: AWS.DynamoDB.DeleteItemOutput
+  ) => void
+): void => {
+  void ddb.deleteItem(getNumberParams(number), (err, data) =>
+    callback(err, data)
+  )
+}
 
 /**
  * Common function to put a phone session - works for both live and sandbox
  * `status` is a reserved keyword in DynamoDB, so we name it `sessionStatus`.
- * @param {string} tableName - The table name to use
- * @param {string | undefined} id
- * @param {string | undefined} sigDigest
- * @param {string | undefined} sessionStatus
- * @param {string | undefined} chainId
- * @param {string | undefined} txHash
- * @param {number | undefined} numAttempts
- * @param {string | undefined} refundTxHash
- * @param {string | undefined} payPal
  */
 const putPhoneSessionCommon = (
-  tableName,
-  id,
-  sigDigest,
-  sessionStatus,
-  chainId,
-  txHash,
-  numAttempts,
-  refundTxHash,
-  payPal
-) => {
-  const params = {
+  tableName: string,
+  //   id: string | undefined,
+  id: string,
+  // sigDigest: string | undefined,
+  sigDigest: string,
+  // sessionStatus: string | undefined,
+  sessionStatus: string,
+  chainId: string | null,
+  txHash: string | null,
+  // numAttempts: number | undefined,
+  numAttempts: number | null,
+  refundTxHash: string | null,
+  payPal: string | null
+): Promise<AWS.DynamoDB.PutItemOutput> => {
+  const params: AWS.DynamoDB.PutItemInput = {
     TableName: tableName,
     Item: {
       id: { S: `${id}` },
@@ -111,25 +120,17 @@ const putPhoneSessionCommon = (
 
 /**
  * `status` is a reserved keyword in DynamoDB, so we name it `sessionStatus`.
- * @param {string | undefined} id
- * @param {string | undefined} sigDigest
- * @param {string | undefined} sessionStatus
- * @param {string | undefined} chainId
- * @param {string | undefined} txHash
- * @param {number | undefined} numAttempts
- * @param {string | undefined} refundTxHash
- * @param {string | undefined} payPal
  */
-const putPhoneSession = (
-  id,
-  sigDigest,
-  sessionStatus,
-  chainId,
-  txHash,
-  numAttempts,
-  refundTxHash,
-  payPal
-) => {
+export const putPhoneSession = (
+  id: string,
+  sigDigest: string,
+  sessionStatus: string,
+  chainId: string | null,
+  txHash: string | null,
+  numAttempts: number | null,
+  refundTxHash: string | null,
+  payPal: string | null
+): Promise<AWS.DynamoDB.PutItemOutput> => {
   return putPhoneSessionCommon(
     'phone-sessions',
     id,
@@ -145,29 +146,19 @@ const putPhoneSession = (
 
 /**
  * Common function to update a phone session - works for both live and sandbox
- * @param {string} tableName - The table name to use
- * @param {string | undefined} id
- * @param {string | undefined} sigDigest
- * @param {string | undefined} sessionStatus
- * @param {string | undefined} chainId
- * @param {string | undefined} txHash
- * @param {number | undefined} numAttempts
- * @param {string | undefined} refundTxHash
- * @param {string | undefined} payPal
- * @param {string | undefined} failureReason
  */
 const updatePhoneSessionCommon = (
-  tableName,
-  id,
-  sigDigest,
-  sessionStatus,
-  chainId,
-  txHash,
-  numAttempts,
-  refundTxHash,
-  payPal,
-  failureReason
-) => {
+  tableName: string,
+  id: string,
+  sigDigest: string | null,
+  sessionStatus: string | null,
+  chainId: string | null,
+  txHash: string | null,
+  numAttempts: number | null,
+  refundTxHash: string | null,
+  payPal: string | null,
+  failureReason: string | null
+): Promise<AWS.DynamoDB.UpdateItemOutput> => {
   // console.log(
   //     'updating session. args:',
   //     [id, sigDigest, sessionStatus, chainId, txHash, numAttempts, refundTxHash, payPal]
@@ -177,7 +168,9 @@ const updatePhoneSessionCommon = (
     sessionStatus ? 'sessionStatus = :sessionStatus' : '',
     chainId ? 'chainId = :chainId' : '',
     txHash ? 'txHash = :txHash' : '',
-    numAttempts ? 'numAttempts = :numAttempts' : '',
+    numAttempts !== undefined && numAttempts !== null
+      ? 'numAttempts = :numAttempts'
+      : '',
     refundTxHash ? 'refundTxHash = :refundTxHash' : '',
     payPal ? 'payPal = :payPal' : '',
     failureReason ? 'failureReason = :failureReason' : ''
@@ -185,17 +178,19 @@ const updatePhoneSessionCommon = (
     .filter((x) => x !== '')
     .join(', ')
   const updateExpression = 'SET ' + expressions
-  const expressionAttributeValues = {
+  const expressionAttributeValues: AWS.DynamoDB.ExpressionAttributeValueMap = {
     ...(sigDigest ? { ':sigDigest': { S: sigDigest } } : {}),
     ...(sessionStatus ? { ':sessionStatus': { S: sessionStatus } } : {}),
     ...(chainId ? { ':chainId': { N: chainId } } : {}),
     ...(txHash ? { ':txHash': { S: txHash } } : {}),
-    ...(numAttempts ? { ':numAttempts': { N: `${numAttempts}` } } : {}),
+    ...(numAttempts !== undefined && numAttempts !== null
+      ? { ':numAttempts': { N: `${numAttempts}` } }
+      : {}),
     ...(refundTxHash ? { ':refundTxHash': { S: refundTxHash } } : {}),
     ...(payPal ? { ':payPal': { S: payPal } } : {}),
     ...(failureReason ? { ':failureReason': { S: failureReason } } : {})
   }
-  const params = {
+  const params: AWS.DynamoDB.UpdateItemInput = {
     TableName: tableName,
     Key: { id: { S: `${id}` } },
     UpdateExpression: updateExpression,
@@ -205,28 +200,17 @@ const updatePhoneSessionCommon = (
   return ddb.updateItem(params).promise()
 }
 
-/**
- * @param {string | undefined} id
- * @param {string | undefined} sigDigest
- * @param {string | undefined} sessionStatus
- * @param {string | undefined} chainId
- * @param {string | undefined} txHash
- * @param {number | undefined} numAttempts
- * @param {string | undefined} refundTxHash
- * @param {string | undefined} payPal
- * @param {string | undefined} failureReason
- */
-const updatePhoneSession = (
-  id,
-  sigDigest,
-  sessionStatus,
-  chainId,
-  txHash,
-  numAttempts,
-  refundTxHash,
-  payPal,
-  failureReason
-) => {
+export const updatePhoneSession = (
+  id: string,
+  sigDigest: string | null,
+  sessionStatus: string | null,
+  chainId: string | null,
+  txHash: string | null,
+  numAttempts: number | null,
+  refundTxHash: string | null,
+  payPal: string | null,
+  failureReason: string | null
+): Promise<AWS.DynamoDB.UpdateItemOutput> => {
   return updatePhoneSessionCommon(
     'phone-sessions',
     id,
@@ -241,20 +225,28 @@ const updatePhoneSession = (
   )
 }
 
-const getPhoneSessionByIdCommon = (tableName, id) => {
-  const params = {
+const getPhoneSessionByIdCommon = (
+  tableName: string,
+  id: string
+): Promise<AWS.DynamoDB.GetItemOutput> => {
+  const params: AWS.DynamoDB.GetItemInput = {
     TableName: tableName,
     Key: { id: { S: `${id}` } }
   }
   return ddb.getItem(params).promise()
 }
 
-const getPhoneSessionById = (id) => {
+export const getPhoneSessionById = (
+  id: string
+): Promise<AWS.DynamoDB.GetItemOutput> => {
   return getPhoneSessionByIdCommon('phone-sessions', id)
 }
 
-const getPhoneSessionsBySigDigestCommon = (tableName, sigDigest) => {
-  const params = {
+const getPhoneSessionsBySigDigestCommon = (
+  tableName: string,
+  sigDigest: string
+): Promise<AWS.DynamoDB.QueryOutput> => {
+  const params: AWS.DynamoDB.QueryInput = {
     TableName: tableName,
     IndexName: 'sigDigest-index',
     KeyConditionExpression: 'sigDigest = :sigDigest',
@@ -262,15 +254,19 @@ const getPhoneSessionsBySigDigestCommon = (tableName, sigDigest) => {
       ':sigDigest': { S: `${sigDigest}` }
     }
   }
-  return ddb.query(params).promise()
+  return ddb.query(params).promise() as any
 }
 
-const getPhoneSessionsBySigDigest = (sigDigest) => {
+export const getPhoneSessionsBySigDigest = (
+  sigDigest: string
+): Promise<AWS.DynamoDB.QueryOutput> => {
   return getPhoneSessionsBySigDigestCommon('phone-sessions', sigDigest)
 }
 
-const getPhoneSessionByTxHash = async (txHash) => {
-  const params = {
+export const getPhoneSessionByTxHash = async (
+  txHash: string
+): Promise<AWS.DynamoDB.AttributeMap | undefined> => {
+  const params: AWS.DynamoDB.QueryInput = {
     TableName: 'phone-sessions',
     IndexName: 'txHash-index',
     KeyConditionExpression: 'txHash = :txHash',
@@ -286,12 +282,12 @@ const getPhoneSessionByTxHash = async (txHash) => {
 
 /**
  * Batch put vouchers into DynamoDB.
- *
- * @param {Array} items - Array of PutRequest items for DynamoDB.
  */
-const batchPutVouchers = async (items) => {
+export const batchPutVouchers = async (
+  items: AWS.DynamoDB.WriteRequest[]
+): Promise<void> => {
   const BATCH_SIZE = 25 // max limit of dynamodb
-  const batches = []
+  const batches: AWS.DynamoDB.WriteRequest[][] = []
 
   // Split items into batches of 25
   for (let i = 0; i < items.length; i += BATCH_SIZE) {
@@ -300,7 +296,7 @@ const batchPutVouchers = async (items) => {
 
   // Write each batch to DynamoDB
   for (const batch of batches) {
-    const params = {
+    const params: AWS.DynamoDB.BatchWriteItemInput = {
       RequestItems: {
         vouchers: batch
       }
@@ -309,27 +305,28 @@ const batchPutVouchers = async (items) => {
   }
 }
 
-/**
- * @param {string} id
- * @param {boolean | undefined} isRedeemed
- * @param {string | undefined} sessionId
- * @param {string | undefined} txHash
- */
-const updateVoucher = (id, isRedeemed, sessionId, txHash) => {
+export const updateVoucher = (
+  id: string,
+  isRedeemed: boolean | undefined,
+  sessionId: string | undefined,
+  txHash: string | null
+): Promise<AWS.DynamoDB.UpdateItemOutput> => {
   const expressions = [
-    isRedeemed ? 'isRedeemed = :isRedeemed' : '',
+    isRedeemed !== undefined ? 'isRedeemed = :isRedeemed' : '',
     sessionId ? 'sessionId = :sessionId' : '',
     txHash ? 'txHash = :txHash' : ''
   ]
     .filter((x) => x !== '')
     .join(', ')
   const updateExpression = 'SET ' + expressions
-  const expressionAttributeValues = {
-    ...(isRedeemed ? { ':isRedeemed': { BOOL: isRedeemed } } : {}),
+  const expressionAttributeValues: AWS.DynamoDB.ExpressionAttributeValueMap = {
+    ...(isRedeemed !== undefined
+      ? { ':isRedeemed': { BOOL: isRedeemed } }
+      : {}),
     ...(sessionId ? { ':sessionId': { S: sessionId } } : {}),
     ...(txHash ? { ':txHash': { S: txHash } } : {})
   }
-  const params = {
+  const params: AWS.DynamoDB.UpdateItemInput = {
     TableName: 'vouchers',
     Key: { id: { S: `${id}` } },
     UpdateExpression: updateExpression,
@@ -338,16 +335,20 @@ const updateVoucher = (id, isRedeemed, sessionId, txHash) => {
   return ddb.updateItem(params).promise()
 }
 
-const getVoucherById = (id) => {
-  const params = {
+export const getVoucherById = (
+  id: string
+): Promise<AWS.DynamoDB.GetItemOutput> => {
+  const params: AWS.DynamoDB.GetItemInput = {
     TableName: 'vouchers',
     Key: { id: { S: `${id}` } }
   }
   return ddb.getItem(params).promise()
 }
 
-const getVoucherByTxHash = async (txHash) => {
-  const params = {
+export const getVoucherByTxHash = async (
+  txHash: string
+): Promise<AWS.DynamoDB.AttributeMap | undefined> => {
+  const params: AWS.DynamoDB.QueryInput = {
     TableName: 'vouchers',
     IndexName: 'txHash-index',
     KeyConditionExpression: 'txHash = :txHash',
@@ -361,11 +362,11 @@ const getVoucherByTxHash = async (txHash) => {
 }
 
 const putNullifierAndCredsCommon = (
-  tableName,
-  issuanceNullifier,
-  phoneNumber
-) => {
-  const params = {
+  tableName: string,
+  issuanceNullifier: string,
+  phoneNumber: string
+): Promise<AWS.DynamoDB.PutItemOutput> => {
+  const params: AWS.DynamoDB.PutItemInput = {
     TableName: tableName,
     Item: {
       issuanceNullifier: { S: `${issuanceNullifier}` },
@@ -376,7 +377,10 @@ const putNullifierAndCredsCommon = (
   return ddb.putItem(params).promise()
 }
 
-const putNullifierAndCreds = (issuanceNullifier, phoneNumber) => {
+export const putNullifierAndCreds = (
+  issuanceNullifier: string,
+  phoneNumber: string
+): Promise<AWS.DynamoDB.PutItemOutput> => {
   return putNullifierAndCredsCommon(
     'phone-nullifier-and-creds',
     issuanceNullifier,
@@ -385,17 +389,19 @@ const putNullifierAndCreds = (issuanceNullifier, phoneNumber) => {
 }
 
 const getNullifierAndCredsByNullifierCommon = (
-  tableName,
-  issuanceNullifier
-) => {
-  const params = {
+  tableName: string,
+  issuanceNullifier: string
+): Promise<AWS.DynamoDB.GetItemOutput> => {
+  const params: AWS.DynamoDB.GetItemInput = {
     TableName: tableName,
     Key: { issuanceNullifier: { S: `${issuanceNullifier}` } }
   }
   return ddb.getItem(params).promise()
 }
 
-const getNullifierAndCredsByNullifier = (issuanceNullifier) => {
+export const getNullifierAndCredsByNullifier = (
+  issuanceNullifier: string
+): Promise<AWS.DynamoDB.GetItemOutput> => {
   return getNullifierAndCredsByNullifierCommon(
     'phone-nullifier-and-creds',
     issuanceNullifier
@@ -408,16 +414,16 @@ const getNullifierAndCredsByNullifier = (issuanceNullifier) => {
 /**
  * Sandbox version of putPhoneSession - uses sandbox-phone-sessions table
  */
-const putSandboxPhoneSession = (
-  id,
-  sigDigest,
-  sessionStatus,
-  chainId,
-  txHash,
-  numAttempts,
-  refundTxHash,
-  payPal
-) => {
+export const putSandboxPhoneSession = (
+  id: string,
+  sigDigest: string,
+  sessionStatus: string,
+  chainId: string | null,
+  txHash: string | null,
+  numAttempts: number | null,
+  refundTxHash: string | null,
+  payPal: string | null
+): Promise<AWS.DynamoDB.PutItemOutput> => {
   return putPhoneSessionCommon(
     'sandbox-phone-sessions',
     id,
@@ -434,17 +440,17 @@ const putSandboxPhoneSession = (
 /**
  * Sandbox version of updatePhoneSession - uses sandbox-phone-sessions table
  */
-const updateSandboxPhoneSession = (
-  id,
-  sigDigest,
-  sessionStatus,
-  chainId,
-  txHash,
-  numAttempts,
-  refundTxHash,
-  payPal,
-  failureReason
-) => {
+export const updateSandboxPhoneSession = (
+  id: string,
+  sigDigest: string | null,
+  sessionStatus: string | null,
+  chainId: string | null,
+  txHash: string | null,
+  numAttempts: number | null,
+  refundTxHash: string | null,
+  payPal: string | null,
+  failureReason: string | null
+): Promise<AWS.DynamoDB.UpdateItemOutput> => {
   return updatePhoneSessionCommon(
     'sandbox-phone-sessions',
     id,
@@ -459,11 +465,15 @@ const updateSandboxPhoneSession = (
   )
 }
 
-const getSandboxPhoneSessionById = (id) => {
+export const getSandboxPhoneSessionById = (
+  id: string
+): Promise<AWS.DynamoDB.GetItemOutput> => {
   return getPhoneSessionByIdCommon('sandbox-phone-sessions', id)
 }
 
-const getSandboxPhoneSessionsBySigDigest = (sigDigest) => {
+export const getSandboxPhoneSessionsBySigDigest = (
+  sigDigest: string
+): Promise<AWS.DynamoDB.QueryOutput> => {
   return getPhoneSessionsBySigDigestCommon('sandbox-phone-sessions', sigDigest)
 }
 
@@ -478,27 +488,3 @@ const getSandboxPhoneSessionsBySigDigest = (sigDigest) => {
 // Usage:
 // addNumber('+1234567890')
 // numberExists('+1234567890', (x)=>console.log('this should now be true', x))
-
-module.exports = {
-  addNumber: addNumber,
-  numberExists: numberExists,
-  getNumber,
-  deleteNumber,
-  putPhoneSession,
-  updatePhoneSession,
-  getPhoneSessionById,
-  getPhoneSessionsBySigDigest,
-  getPhoneSessionByTxHash,
-  getVoucherByTxHash,
-  batchPutVouchers,
-  getVoucherById,
-  updateVoucher,
-  putNullifierAndCreds,
-  getNullifierAndCredsByNullifier,
-  putSandboxPhoneSession,
-  updateSandboxPhoneSession,
-  getSandboxPhoneSessionById,
-  getSandboxPhoneSessionsBySigDigest
-  // putSandboxNullifierAndCreds,
-  // getSandboxNullifierAndCredsByNullifier
-}

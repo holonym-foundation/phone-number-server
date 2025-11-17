@@ -2,9 +2,10 @@
   "name": "phone-server",
   "version": "1.0.0",
   "description": "",
-  "main": "check-number.js",
+  "main": "check-number.ts",
   "scripts": {
-    "start": "bun check-number.js",
+    "start": "bun check-number.ts",
+    "type-check": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint-fix": "echo \"Linting not implemented for phone-number-server\" && exit 0",
     "lint-check": "echo \"Linting not implemented for phone-number-server\" && exit 0",
@@ -42,7 +43,11 @@
     "twilio": "^3.83.3"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^20.10.0",
     "husky": "^9.1.7",
-    "prettier": "^3.0.0"
+    "prettier": "^3.0.0",
+    "typescript": "^5.3.3"
   }
 }

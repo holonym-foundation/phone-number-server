@@ -1,8 +1,8 @@
-require('dotenv').config()
-const crypto = require('crypto')
-const Messente = require('messente_api')
-const { ERROR_MESSAGES } = require('./constants.js')
-const { redis } = require('./redis.js')
+import 'dotenv/config'
+import crypto from 'crypto'
+import Messente from 'messente_api'
+import { ERROR_MESSAGES } from './constants.js'
+import { redis } from './redis.js'
 
 const OTP_EXPIRY = 60 * 5 // 5 minutes
 
@@ -15,9 +15,10 @@ const api = new Messente.OmnimessageApi()
 const MAX_COUNTRY_ATTEMPTS_PER_MINUTE = 10
 const MAX_COUNTRY_ATTEMPTS_PER_HOUR = 300
 
-const getOTP = () => crypto.randomInt(0, 1000000).toString().padStart(6, '0')
+const getOTP = (): string =>
+  crypto.randomInt(0, 1000000).toString().padStart(6, '0')
 
-const cacheRequestFromCountry = async (countryCode) => {
+const cacheRequestFromCountry = async (countryCode: string): Promise<void> => {
   const minuteKey = `country_requests_minutes:minute:${countryCode}`
   const hourKey = `country_requests_minutes:hour:${countryCode}`
   const countMinute = await redis.incr(minuteKey)
@@ -43,11 +44,11 @@ const cacheRequestFromCountry = async (countryCode) => {
   }
 }
 
-const cacheOTP = async (phoneNumber, otp) => {
-  await redis.set(`OTP:${phoneNumber}`, otp, 'EX', OTP_EXPIRY)
+const cacheOTP = async (phoneNumber: string, otp: string): Promise<void> => {
+  await redis.set(`OTP:${phoneNumber}`, otp, { EX: OTP_EXPIRY })
 }
 
-const checkOTP = async (phoneNumber, otp) => {
+const checkOTP = async (phoneNumber: string, otp: string): Promise<boolean> => {
   const cachedOTP = await redis.get(`OTP:${phoneNumber}`)
 
   if (!cachedOTP) throw new Error(ERROR_MESSAGES.OTP_NOT_FOUND)
@@ -58,7 +59,7 @@ const checkOTP = async (phoneNumber, otp) => {
   return true
 }
 
-const sendOTP = async (phoneNumber, otp) => {
+const sendOTP = async (phoneNumber: string, otp: string): Promise<void> => {
   const text = `${otp} is your verification code`
   const sender = 'Holonym'
 
@@ -72,27 +73,28 @@ const sendOTP = async (phoneNumber, otp) => {
     to: phoneNumber
   })
 
-  api.sendOmnimessage(omnimessage, (error, data, response) => {
+  api.sendOmnimessage(omnimessage, (error: any, data: any, response: any) => {
     console.error('error?', error)
     console.log('data', data)
     // console.log('response', response)
   })
 }
 
-async function begin(phoneNumber, countryCode) {
+export async function begin(
+  phoneNumber: string,
+  countryCode: string
+): Promise<void> {
   const otp = getOTP()
   await cacheRequestFromCountry(countryCode)
   await cacheOTP(phoneNumber, otp)
   await sendOTP(phoneNumber, otp)
 }
 
-async function verify(phoneNumber, otp) {
+export async function verify(
+  phoneNumber: string,
+  otp: string
+): Promise<boolean> {
   return await checkOTP(phoneNumber, otp)
-}
-
-module.exports = {
-  begin,
-  verify
 }
 // todo: fallbacks: viber -> whatsapp -> sms? or sms -> viber -> whatsapp? or sms -> whatsapp -> viber? SMS is most expensive but also what our users expect. Perhaps do viber or whatsapp if SMS doesn't deliver??
 // todo: delivery webhook
