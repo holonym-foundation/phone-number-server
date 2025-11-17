@@ -7,6 +7,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: dummy_access_key
+      AWS_SECRET_ACCESS_KEY: dummy_secret_key
 
     steps:
       - name: Checkout code

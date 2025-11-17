@@ -1,5 +1,26 @@
 import AWS from 'aws-sdk'
-AWS.config.update({ region: 'us-east-2' })
+
+// Validate required AWS credentials are present
+if (!process.env.AWS_ACCESS_KEY_ID) {
+  throw new Error(
+    'AWS_ACCESS_KEY_ID environment variable is required for connecting to DynamoDB'
+  )
+}
+if (!process.env.AWS_SECRET_ACCESS_KEY) {
+  throw new Error(
+    'AWS_SECRET_ACCESS_KEY environment variable is required for connecting to DynamoDB'
+  )
+}
+
+// Configure AWS credentials from environment variables
+AWS.config.update({
+  region: 'us-east-2',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  }
+})
+
 export const ddb = new AWS.DynamoDB({ apiVersion: '2012-08-10' })
 
 export interface PayPalOrder {
