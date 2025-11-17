@@ -48,6 +48,22 @@ Or simply:
 bun check-number.ts
 ```
 
+## Docker
+
+This server can also be run using Docker with Bun.
+
+### Building the Docker image
+
+```bash
+docker build -t phone-number-server .
+```
+
+### Running the Docker container
+
+```bash
+docker run --network host --restart always --env-file .env phone-number-server
+```
+
 ## TypeScript
 
 This project is written in TypeScript. You can run type checking with:
