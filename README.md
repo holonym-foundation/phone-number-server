@@ -1,3 +1,8 @@
+> ⚠️ **Notice:**  
+> This code has moved into [holonym-foundation/id-server](https://github.com/holonym-foundation/id-server).  
+> Development continues there.
+> This repo is no longer maintained.
+
 ## Setup
 
 First, install [Bun](https://bun.sh). You can install it by running:
